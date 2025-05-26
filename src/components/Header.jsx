@@ -1,63 +1,39 @@
-import { Button, Dropdown, Space } from "antd";
-import { useContext } from "react";
+import { AutoComplete, Button, Dropdown, Input, Space, Tooltip } from "antd";
+import { useContext, useMemo, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
-
-const items = [
-  {
-    key: "1",
-    label: <a href="https://www.antgroup.com">Thể loại phim</a>,
-  },
-  {
-    key: "2",
-    label: <a href="https://www.antgroup.com">Diễn viên</a>,
-  },
-  {
-    key: "3",
-    label: <a href="https://www.antgroup.com">Đạo diễn</a>,
-  },
-  {
-    key: "4",
-    label: <a href="https://www.antgroup.com">Trailer</a>,
-  },
-  {
-    key: "5",
-    label: <a href="https://www.antgroup.com">Tin tức</a>,
-  },
-  {
-    key: "6",
-    label: <a href="https://www.antgroup.com">Thể loại phim</a>,
-  },
-];
-
-const events = [
-  {
-    key: "1",
-    label: <a href="https://www.antgroup.com">Trò chơi</a>,
-  },
-  {
-    key: "2",
-    label: <a href="https://www.antgroup.com">Khuyến mãi</a>,
-  },
-];
-
-const cinemas = [
-  {
-    key: "1",
-    label: <a href="https://www.antgroup.com">Galaxy Mipect Long Biên</a>,
-  },
-  {
-    key: "2",
-    label: <a href="https://www.antgroup.com">Galaxy Tân Bình</a>,
-  },
-];
+import { Link, useNavigate } from "react-router-dom";
+import logo from "../assets/images/logo.png";
+import {
+  LoginOutlined,
+  SearchOutlined,
+  ShoppingCartOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
 
 const Header = () => {
   const { auth, logout } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchValue, setSearchValue] = useState("");
+  const [options, setOptions] = useState([]);
+  const [arrow, setArrow] = useState("Show");
+  const mergedArrow = useMemo(() => {
+    if (arrow === "Hide") {
+      return false;
+    }
+    if (arrow === "Show") {
+      return true;
+    }
+    return {
+      pointAtCenter: true,
+    };
+  }, [arrow]);
 
-  const login = () => {
-    navigate("/login");
+  const handleSearch = (value) => {
+    if (value.trim() === "") {
+      return;
+    }
+    // Navigate to search results page with the search query
+    navigate(`/search?query=${encodeURIComponent(value)}`);
   };
 
   const handleLogout = () => {
@@ -65,79 +41,129 @@ const Header = () => {
     navigate("/login");
   };
 
+  const handleSearchChange = (value) => {
+    setSearchValue(value);
+
+    /// Điều này được thay thế bằng việc gọi API để lấy gợi ý tìm kiếm.
+    /// Ví dụ: apiClient.get(`/api/products/search?keyword=${value}`)
+
+    if (value.trim() === "") {
+      setOptions([]);
+      return;
+    } else {
+      const mockSuggestions = [
+        `${value} áo thun`,
+        `${value} quần jean`,
+        `${value} giày`,
+        `${value} túi xách`,
+      ];
+
+      setOptions(
+        mockSuggestions.map((item) => ({
+          value: item,
+          label: (
+            <div className="flex items-center">
+              <SearchOutlined className="mr-2 text-gray-400" />
+              <span>{item}</span>
+            </div>
+          ),
+        }))
+      );
+    }
+  };
+
   return (
-    <header className="w-full min-h-20 h-6  py-4 flex flex-row rounded-b-xl border-[#ebebeb] border-b-2">
-      <div className="w-full h-full mx-auto max-w-[1280px]">
+    <header className="w-full min-h-24 flex flex-row items-center border-[1px] border-solid rounded-b-xl border-gray-200 bg-white shadow-md">
+      <div className="w-full h-full mx-auto px-10">
         <nav className="flex flex-row justify-between items-center">
-          <button onClick={() => navigate("/home")} className="cursor-pointer">
-            <img
-              src={
-                "https://www.galaxycine.vn/_next/static/media/galaxy-logo-mobile.074abeac.png"
-              }
-              alt="galaxy logo"
-              className="w-[115px] h-[60px] ml-4 mr-12"
-            />
+          <button onClick={() => navigate("/")} className="cursor-pointer">
+            <img src={logo} alt="e-commerce logo" width={60} />
           </button>
-          <div className="flex flex-row justify-center items-center min-w-[700px] gap-x-10">
-            <a className="mr-4" href="/bookings">
-              <img
-                src={
-                  "https://www.galaxycine.vn/_next/static/media/btn-ticket.42d72c96.webp"
-                }
-                alt="Mua vé"
-                className="w-[112px] h-[36px]"
+          <div className="flex flex-row justify-center items-center min-w-[600px] mx-auto gap-x-10">
+            <AutoComplete
+              className="w-full"
+              options={options}
+              onSelect={handleSearch}
+              onSearch={handleSearchChange}
+              value={searchValue}
+              dropdownClassName="search-dropdown font-display"
+              dropdownMatchSelectWidth={500}
+            >
+              <Input.Search
+                placeholder="Tìm kiếm quần áo, trang sức và nhiều hơn nữa..."
+                variant="outlined"
+                value={searchValue}
+                onSearch={handleSearch}
+                onChange={(e) => setSearchValue(e.target.value)}
+                allowClear={true}
+                size="large"
               />
-            </a>
-            <div className="text-black cursor-pointer">
-              <Dropdown
-                menu={{
-                  items,
-                }}
-                disabled={false}
-                placement="bottom"
-              >
-                <a onClick={(e) => e.preventDefault()}>
-                  <Space>Góc điện ảnh</Space>
-                </a>
-              </Dropdown>
-            </div>
-            <div className="text-black cursor-pointer">
-              <Dropdown
-                menu={{
-                  items: events,
-                }}
-                placement="bottom"
-              >
-                <a onClick={(e) => e.preventDefault()}>
-                  <Space>Sự kiện</Space>
-                </a>
-              </Dropdown>
-            </div>
-            <div className="text-black cursor-pointer">
-              <Dropdown
-                menu={{
-                  items: cinemas,
-                }}
-                placement="bottom"
-              >
-                <a onClick={(e) => e.preventDefault()}>
-                  <Space>Rạp/ Giá vé</Space>
-                </a>
-              </Dropdown>
-            </div>
+            </AutoComplete>
           </div>
           <div className="mr-4 flex flex-row justify-end items-center">
-            {auth.isAuthenticated && (
+            {!auth.isAuthenticated ? (
+              <div className="flex w-full justify-between items-center gap-x-10">
+                <div className="flex flex-row justify-center items-center gap-x-4">
+                  <Tooltip
+                    placement="bottom"
+                    title={"Profile"}
+                    arrow={mergedArrow}
+                  >
+                    <Button
+                      icon={<UserOutlined />}
+                      onClick={() => navigate("/profile")}
+                      shape="circle"
+                      size="large"
+                      style={{
+                        borderColor: "#4F46E5",
+                        color: "#4F46E5",
+                        fontSize: "22px",
+                      }}
+                    ></Button>
+                  </Tooltip>
+                  <Tooltip
+                    placement="bottom"
+                    title={"Giỏ hàng"}
+                    arrow={mergedArrow}
+                  >
+                    <Button
+                      icon={<ShoppingCartOutlined />}
+                      onClick={() => navigate("/cart")}
+                      shape="circle"
+                      size="large"
+                      style={{
+                        borderColor: "#fa8c16",
+                        color: "#fa8c16",
+                        fontSize: "22px",
+                      }}
+                    ></Button>
+                  </Tooltip>
+                </div>
+                <Button
+                  onClick={handleLogout}
+                  color="orange"
+                  variant="solid"
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "450",
+                  }}
+                >
+                  Đăng xuất
+                </Button>
+              </div>
+            ) : (
               <Button
-                onClick={handleLogout}
-                color="orange"
-                variant="solid"
+                onClick={() => navigate("/login")}
+                type="primary"
                 style={{
-                  fontSize: "16px",
-                  fontWeight: "450",
+                  backgroundColor: "#4F46E5",
+                  fontWeight: "bold",
+                  padding: "16px 12px",
                 }}
+                className="text-[#F5F5F5]"
+                icon={<LoginOutlined />}
               >
-                Đăng xuất
+                Đăng nhập
               </Button>
             )}
           </div>

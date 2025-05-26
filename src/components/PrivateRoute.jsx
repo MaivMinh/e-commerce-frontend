@@ -8,7 +8,7 @@ const PrivateRoute = ({ children }) => {
 
   if (loading) return;
 
-  return auth.isAuthenticated ? (
+  return !auth.isAuthenticated ? (
     children
   ) : (
     <Navigate to="/login" state={{ from: location }} replace />
