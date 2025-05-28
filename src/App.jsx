@@ -16,122 +16,125 @@ import Cart from "./pages/private/Cart";
 import Order from "./pages/private/Order";
 import Checkout from "./pages/private/Checkout";
 import Product from "./pages/private/Product";
+import { CartContextProvider } from "./context/CartContext";
 
 function App() {
   return (
     <AuthContextProvider>
-      <Router>
-        <Routes>
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            }
-          />
-          <Route
-            path="/register"
-            element={
-              <PublicRoute>
-                <Register />
-              </PublicRoute>
-            }
-          />
-          <Route
-            path="/account/forgot-password"
-            element={
-              <PublicRoute>
-                <ForgotPassword />
-              </PublicRoute>
-            }
-          />
-          <Route
-            path="/account/reset-password"
-            element={
-              <PublicRoute>
-                <ResetPassword />
-              </PublicRoute>
-            }
-          />
-          <Route path="/" element={<MainLayout />}>
+      <CartContextProvider>
+        <Router>
+          <Routes>
             <Route
-              index
+              path="/login"
               element={
                 <PublicRoute>
-                  <Home />
+                  <Login />
                 </PublicRoute>
               }
             />
             <Route
-              path="/home"
+              path="/register"
               element={
                 <PublicRoute>
-                  <Home />
+                  <Register />
                 </PublicRoute>
               }
             />
             <Route
-              path="/profile"
+              path="/account/forgot-password"
               element={
                 <PublicRoute>
-                  <div>Profile Page</div>
+                  <ForgotPassword />
                 </PublicRoute>
               }
             />
             <Route
-              path="/cart"
+              path="/account/reset-password"
               element={
                 <PublicRoute>
-                  <Cart />
+                  <ResetPassword />
                 </PublicRoute>
               }
             />
-            <Route
-              path="/products"
-              element={
-                <PrivateRoute>
-                  <Product />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/products/:slug"
-              element={
-                <PrivateRoute>
-                  <ProductDetail />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/orders"
-              element={
-                <PrivateRoute>
-                  <Order />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/wishlist"
-              element={
-                <PrivateRoute>
-                  <div>Wishlist Page</div>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/checkout"
-              element={
-                <PrivateRoute>
-                  <Checkout />
-                </PrivateRoute>
-              }
-            />
-            <Route path="/search" element={<SearchResults />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Router>
+            <Route path="/" element={<MainLayout />}>
+              <Route
+                index
+                element={
+                  <PublicRoute>
+                    <Home />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/home"
+                element={
+                  <PublicRoute>
+                    <Home />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <PublicRoute>
+                    <div>Profile Page</div>
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/cart"
+                element={
+                  <PublicRoute>
+                    <Cart />
+                  </PublicRoute>
+                }
+              />
+              <Route
+                path="/products"
+                element={
+                  <PrivateRoute>
+                    <Product />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/products/:slug"
+                element={
+                  <PrivateRoute>
+                    <ProductDetail />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/orders"
+                element={
+                  <PrivateRoute>
+                    <Order />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/wishlist"
+                element={
+                  <PrivateRoute>
+                    <div>Wishlist Page</div>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/checkout"
+                element={
+                  <PrivateRoute>
+                    <Checkout />
+                  </PrivateRoute>
+                }
+              />
+              <Route path="/search" element={<SearchResults />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Router>
+      </CartContextProvider>
     </AuthContextProvider>
   );
 }

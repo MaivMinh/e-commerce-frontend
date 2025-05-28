@@ -316,27 +316,32 @@ const ProductDetail = () => {
   const handleSizeChange = (e) => {
     const size = e.target.value;
     setSelectedSize(size);
-    setSelectedColor(null); // Reset color when size changes
+    setSelectedColor(null);
+    handleQuantityDisplay(null)
   };
 
   const handleColorChange = (colorName) => {
+    console.log(colorName);
     setSelectedColor(colorName);
-    handleQuantityDisplay(); // Update quantity display when color changes
+    handleQuantityDisplay(colorName); // Update quantity display when color changes
   };
 
-  const handleQuantityDisplay = () => {
+  const handleQuantityDisplay = (colorName) => {
     ///Lấy số lượng hiện tại của sản phẩm. Ứng với size và color đã chọn
-    if (selectedSize && selectedColor) {
+    if (selectedSize && colorName) {
       console.log(selectedSize, selectedColor);
       const variant = variants.find(
-        (v) => v.size === selectedSize && v.colorName === selectedColor
+        (v) => v.size === selectedSize && v.colorName === colorName
       );
       setCurrentQuantity(variant ? variant.quantity : 0);
-    } else setCurrentQuantity(0);
+    } else {
+      console.log("Chưa chọn size hoặc color", selectedSize, colorName);
+      setCurrentQuantity(0);
+    }
   };
 
   /// Hàm xử lý thêm vào giỏ hàng
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     setIsAddToCartProcessing(true);
     if (!selectedSize || !selectedColor) {
       openErrorNotification(
@@ -345,17 +350,27 @@ const ProductDetail = () => {
       setIsAddToCartProcessing(false);
       return;
     }
-
+    /// Lấy thông tin variant hiện tại dựa trên size và color đã chọn
+    const variant = variants.find(
+      (v) =>
+        v.size === selectedSize && v.colorName === selectedColor
+    );
+    if (!variant) {
+      openErrorNotification(
+        "Không tìm thấy sản phẩm với kích thước và màu sắc đã chọn."
+      );
+      setIsAddToCartProcessing(false);
+      return;
+    }
+    console.log(variant);
     try {
-      const cartItem = {
-        productId: product.id,
-        name: product.name,
-        size: selectedSize,
-        color: selectedColor,
-        price: getCurrentPrice(),
-        quantity: quantity,
-      };
-      console.log(cartItem);
+      const data = {
+        "productVariantDTO": {
+          "id": variant.id,
+        },
+        "quantity": quantity,
+      }
+      const response = await apiClient.post("/api/carts/anonymous/items", data);
       openSuccessNofitication(
         "Đã thêm vào giỏ hàng",
         `Đã thêm ${product.name} (${selectedSize}, ${selectedColor}) x${quantity} vào giỏ hàng.`
@@ -696,7 +711,7 @@ const ProductDetail = () => {
                 <div className="flex items-center">
                   <InputNumber
                     min={1}
-                    max={100}
+                    max={currentQuantity}
                     value={quantity}
                     onChange={setQuantity}
                     className="w-20"

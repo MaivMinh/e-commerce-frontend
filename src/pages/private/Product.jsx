@@ -5,8 +5,8 @@ import {
 } from 'antd';
 import {
   FilterOutlined, ShoppingCartOutlined, HeartOutlined, 
-  SearchOutlined, SwapOutlined, DownOutlined, EyeOutlined,
-  PlusOutlined, MinusOutlined, StarFilled, FireOutlined
+  EyeOutlined,
+  FireOutlined
 } from '@ant-design/icons';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 

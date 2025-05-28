@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   Typography,
   Button,
@@ -20,13 +20,12 @@ import {
   RightOutlined,
   LeftOutlined,
   ShoppingCartOutlined,
-  CreditCardOutlined,
-  BankOutlined,
-  WalletOutlined,
-  DollarOutlined,
   TagOutlined,
+  IssuesCloseOutlined,
 } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
+import apiClient from "../../services/apiClient";
+import { CartContext } from "../../context/CartContext";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -34,65 +33,46 @@ const { Option } = Select;
 const Cart = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("credit_card");
-
-  // Mock shipping fee
+  const [loading, setLoading] = useState(true);
+  const [voucherCode, setVoucherCode] = useState("");
+  const [api, contextHolder] = notification.useNotification();
   const shippingFee = 30000;
 
   // Fetch cart items (mocked)
   useEffect(() => {
-    // In a real app, you would fetch from API
-    // apiClient.get('/api/cart')
-
-    // Mock data
-    setTimeout(() => {
-      setCartItems([
-        {
-          id: "17c43880-0d6d-45cb-afd4-0d16915f73b2",
-          name: "Áo Thun Nam Cao Cấp",
-          size: "L",
-          color: { name: "Đen", hex: "#212121" },
-          price: 350000,
-          originalPrice: 450000,
-          image:
-            "https://res.cloudinary.com/deozipakf/image/upload/v1747929477/q9cwofgufdouofmhtey9.jpg",
-          quantity: 2,
-        },
-        {
-          id: "28d54991-1e7e-56dc-bfe5-1e27026f84c3",
-          name: "Quần Jeans Nữ Skinny",
-          size: "M",
-          color: { name: "Xanh dương", hex: "#1E88E5" },
-          price: 520000,
-          originalPrice: 520000,
-          image:
-            "https://res.cloudinary.com/deozipakf/image/upload/v1747929477/q9cwofgufdouofmhtey9.jpg",
-          quantity: 1,
-        },
-        {
-          id: "39e65aa2-2f8f-67ed-cf06-2f38137f95d4",
-          name: "Áo Khoác Nữ Dáng Dài",
-          size: "S",
-          color: { name: "Đỏ", hex: "#E53935" },
-          price: 750000,
-          originalPrice: 899000,
-          image:
-            "https://res.cloudinary.com/deozipakf/image/upload/v1747929477/q9cwofgufdouofmhtey9.jpg",
-          quantity: 1,
-        },
-      ]);
-      setSelectedItems([
-        "17c43880-0d6d-45cb-afd4-0d16915f73b2",
-        "28d54991-1e7e-56dc-bfe5-1e27026f84c3",
-        "39e65aa2-2f8f-67ed-cf06-2f38137f95d4",
-      ]);
-      setLoading(false);
-    }, 1000);
+    const fetchCartItems = async () => {
+      try {
+        const response = await apiClient.get("/api/carts/anonymous");
+        setCartItems(response.data.data.items || []);
+        console.log(response.data.data.items);
+        setSelectedItems(response.data.data.items.map((item) => item.id));
+      } catch (error) {
+        console.error("Failed to fetch cart items:", error);
+        notification.error({
+          message: "Lỗi",
+          description: "Không thể tải giỏ hàng. Vui lòng thử lại sau.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCartItems();
   }, []);
+
+  const openErrorNotification = (message) => {
+    api.open({
+      message: <span className="text-red-500">Thông báo</span>,
+      type: "error",
+      description: <span className="font-semibold">{message}</span>,
+      icon: <IssuesCloseOutlined style={{ color: "red" }} />,
+      placement: "topRight",
+      pauseOnHover: true,
+      showProgress: true,
+      duration: 3,
+    });
+  };
 
   // Mock vouchers
   const vouchers = [
@@ -117,20 +97,52 @@ const Cart = () => {
   ];
 
   // Handle quantity change
-  const handleQuantityChange = (id, value) => {
-    setCartItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity: value } : item))
-    );
+  let timeoutId = null;
+  const handleQuantityChange = (record, value) => {
+    const cartItemId = record.id;
+    const productVariantId = record.productVariantDTO.id;
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      apiClient
+        .put(`/api/carts/items/${cartItemId}`, {
+          productVariantDTO: {
+            id: productVariantId,
+          },
+          quantity: value,
+        })
+        .then((response) => {
+          setCartItems((prev) =>
+            prev.map((item) =>
+              item.id === cartItemId ? { ...item, quantity: value } : item
+            )
+          );
+        })
+        .catch((error) => {
+          console.error("Failed to update quantity:", error);
+          openErrorNotification("Không thể cập nhật số lượng sản phẩm.");
+        });
+    }, 500);
   };
 
   // Handle item removal
   const handleRemoveItem = (id) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
-    setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
-    notification.success({
-      message: "Đã xóa sản phẩm",
-      description: "Sản phẩm đã được xóa khỏi giỏ hàng.",
-    });
+    apiClient
+      .delete(`/api/carts/items/${id}`)
+      .then((response) => {
+        setCartItems((prev) => prev.filter((item) => item.id !== id));
+        setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
+        notification.success({
+          message: "Đã xóa sản phẩm",
+          description: "Sản phẩm đã được xóa khỏi giỏ hàng.",
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to remove item:", error);
+        notification.error({
+          message: "Lỗi",
+          description: "Không thể xóa sản phẩm. Vui lòng thử lại sau.",
+        });
+      });
   };
 
   // Handle item selection
@@ -178,17 +190,36 @@ const Cart = () => {
     });
   };
 
+  const handleCheckout = () => {
+    if (selectedItems.length === 0) {
+      return;
+    }
+    const selectedCartItems = cartItems.filter((item) =>
+      selectedItems.includes(item.id)
+    );
+    localStorage.removeItem("selected-cart-items");
+    localStorage.setItem(
+      "selected-cart-items",
+      JSON.stringify(selectedCartItems)
+    );
+    localStorage.removeItem("applied-voucher");
+    localStorage.setItem("applied-voucher", JSON.stringify(appliedVoucher));
+    navigate("/checkout");
+  };
+
   // Calculate subtotal
   const calculateSubtotal = () => {
     return cartItems
       .filter((item) => selectedItems.includes(item.id))
-      .reduce((total, item) => total + item.price * item.quantity, 0);
+      .reduce(
+        (total, item) => total + item.productVariantDTO.price * item.quantity,
+        0
+      );
   };
 
   // Calculate discount amount
   const calculateDiscount = () => {
     if (!appliedVoucher) return 0;
-
     const subtotal = calculateSubtotal();
 
     if (appliedVoucher.type === "percentage") {
@@ -207,7 +238,6 @@ const Cart = () => {
     const subtotal = calculateSubtotal();
     const discount = calculateDiscount();
     const shipping = appliedVoucher?.type === "shipping" ? 0 : shippingFee;
-
     return subtotal - discount + shipping;
   };
 
@@ -235,33 +265,33 @@ const Cart = () => {
           />
           <div className="w-20 h-20 flex-shrink-0">
             <Image
-              src={record.image}
-              alt={record.name}
+              src={record.productVariantDTO.cover}
+              alt={record.productVariantDTO.name}
               className="w-full h-full object-cover rounded"
               preview={false}
             />
           </div>
           <div className="flex-grow">
             <Link
-              to={`/product/${record.id}`}
+              to={`/products/${record.productVariantDTO.slug}`}
               className="text-lg font-medium hover:text-indigo-600 transition"
             >
-              {record.name}
+              {record.productVariantDTO.name}
             </Link>
             <div className="flex flex-wrap gap-2 mt-1">
-              <Tag color="default">Size: {record.size}</Tag>
+              <Tag color="default">Size: {record.productVariantDTO.size}</Tag>
               <Tag
                 color="default"
                 style={{
-                  backgroundColor: record.color.hex,
+                  backgroundColor: record.productVariantDTO.colorHex,
                   color:
-                    record.color.hex === "#FFFFFF" ||
-                    record.color.hex === "#ffffff"
+                    record.productVariantDTO.colorHex === "#FFFFFF" ||
+                    record.productVariantDTO.colorHex === "#ffffff"
                       ? "#000"
                       : "#fff",
                 }}
               >
-                {record.color.name}
+                {record.productVariantDTO.colorName}
               </Tag>
             </div>
           </div>
@@ -276,11 +306,12 @@ const Cart = () => {
       render: (_, record) => (
         <div>
           <div className="text-lg font-semibold">
-            {formatPrice(record.price)}
+            {formatPrice(record.productVariantDTO.price)}
           </div>
-          {record.originalPrice > record.price && (
+          {record.productVariantDTO.originalPrice >
+            record.productVariantDTO.price && (
             <div className="text-sm line-through text-gray-500">
-              {formatPrice(record.originalPrice)}
+              {formatPrice(record.productVariantDTO.originalPrice)}
             </div>
           )}
         </div>
@@ -296,7 +327,7 @@ const Cart = () => {
           min={1}
           max={100}
           value={record.quantity}
-          onChange={(value) => handleQuantityChange(record.id, value)}
+          onChange={(value) => handleQuantityChange(record, value)}
           className="w-20"
         />
       ),
@@ -308,7 +339,7 @@ const Cart = () => {
       align: "right",
       render: (_, record) => (
         <span className="text-lg font-semibold text-red-600">
-          {formatPrice(record.price * record.quantity)}
+          {formatPrice(record.productVariantDTO.price * record.quantity)}
         </span>
       ),
     },
@@ -509,46 +540,12 @@ const Cart = () => {
                   </div>
                 )}
 
-                {/* <div className="mb-6">
-                  <Title level={5} className="mb-3">Phương thức thanh toán</Title>
-                  <Radio.Group 
-                    value={paymentMethod} 
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full space-y-2"
-                  >
-                    <Radio.Button 
-                      value="credit_card" 
-                      className="flex items-center h-auto p-3 w-full text-left mb-2"
-                    >
-                      <CreditCardOutlined className="text-xl mr-2" /> Thẻ tín dụng / ghi nợ
-                    </Radio.Button>
-                    <Radio.Button 
-                      value="bank_transfer" 
-                      className="flex items-center h-auto p-3 w-full text-left mb-2"
-                    >
-                      <BankOutlined className="text-xl mr-2" /> Chuyển khoản ngân hàng
-                    </Radio.Button>
-                    <Radio.Button 
-                      value="e_wallet" 
-                      className="flex items-center h-auto p-3 w-full text-left mb-2"
-                    >
-                      <WalletOutlined className="text-xl mr-2" /> Ví điện tử (MoMo, ZaloPay)
-                    </Radio.Button>
-                    <Radio.Button 
-                      value="cod" 
-                      className="flex items-center h-auto p-3 w-full text-left mb-2"
-                    >
-                      <DollarOutlined className="text-xl mr-2" /> Thanh toán khi nhận hàng (COD)
-                    </Radio.Button>
-                  </Radio.Group>
-                </div> */}
-
                 <Button
                   color="purple"
                   size="large"
                   variant="solid"
                   block
-                  onClick={() => navigate("/checkout")}
+                  onClick={handleCheckout}
                   className="h-12 flex items-center justify-center text-lg bg-indigo-600 hover:bg-indigo-700"
                   disabled={selectedItems.length === 0}
                 >
