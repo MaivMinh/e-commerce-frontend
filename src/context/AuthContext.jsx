@@ -30,6 +30,7 @@ export const AuthContextProvider = ({ children }) => {
         };
       });
       localStorage.removeItem("access-token");
+      localStorage.removeItem("refresh-token");
       localStorage.removeItem("profile");
     }
     setLoading(false);

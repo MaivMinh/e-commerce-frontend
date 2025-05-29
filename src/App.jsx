@@ -76,17 +76,17 @@ function App() {
               <Route
                 path="/profile"
                 element={
-                  <PublicRoute>
+                  <PrivateRoute>
                     <div>Profile Page</div>
-                  </PublicRoute>
+                  </PrivateRoute>
                 }
               />
               <Route
                 path="/cart"
                 element={
-                  <PublicRoute>
+                  <PrivateRoute>
                     <Cart />
-                  </PublicRoute>
+                  </PrivateRoute>
                 }
               />
               <Route

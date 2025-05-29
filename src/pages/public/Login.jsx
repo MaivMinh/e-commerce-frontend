@@ -76,6 +76,7 @@ const Login = () => {
     apiClient
       .post("/api/auth/login", values)
       .then((response) => {
+        console.log(response);
         const payload = response.data;
         const data = payload.data;
         const accessToken = data.accessToken;

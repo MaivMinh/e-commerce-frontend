@@ -20,20 +20,20 @@ const Register = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    document.title = "Register - Movie Reservation System";
+    document.title = "Register - E-commerce platform";
   }, []);
 
-  const onFinish = (values) => {
+  const onFinish = async (values) => {
     setLoading(true);
-    console.log(values);
     const registration = {
+      name: values.name,
       username: values.username,
       email: values.email,
       password: values.password,
     };
 
     // Replace this with your actual API call
-    apiClient
+    await apiClient
       .post("/api/auth/register", registration)
       .then((res) => {
         setLoading(false);
@@ -99,6 +99,25 @@ const Register = () => {
             size="large"
           >
             <Form.Item
+              name="name"
+              rules={[
+                { required: true, message: "Please enter your full name!" },
+                {
+                  pattern: /^[A-Za-zÀ-ỹ\s'-]{2,50}$/,
+                  message:
+                    "Name must be 2-50 characters and can contain letters, spaces, hyphens, and apostrophes.",
+                },
+              ]}
+              hasFeedback
+            >
+              <Input
+                prefix={<UserOutlined className="text-gray-400 mr-2" />}
+                placeholder="Full Name"
+                className="rounded-lg"
+              />
+            </Form.Item>
+
+            <Form.Item
               name="username"
               rules={[
                 { required: true, message: "Please enter your username!" },
@@ -132,24 +151,6 @@ const Register = () => {
               <Input
                 prefix={<MailOutlined className="text-gray-400 mr-2" />}
                 placeholder="Email"
-                className="rounded-lg"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="phoneNumber"
-              rules={[
-                { required: true, message: "Please enter your phone number!" },
-                {
-                  pattern: /(0[3|5|7|8|9])+([0-9]{8})\b/g, /// Bắt đầu bằng 03 || 05 || 07 || 08 || 09 và theo sau là 8 số
-                  message: "Please enter a valid phone number!",
-                },
-              ]}
-              hasFeedback
-            >
-              <Input
-                prefix={<PhoneOutlined className="text-gray-400 mr-2" />}
-                placeholder="Phone number"
                 className="rounded-lg"
               />
             </Form.Item>

@@ -101,7 +101,7 @@ const Header = () => {
             </AutoComplete>
           </div>
           <div className="mr-4 flex flex-row justify-end items-center">
-            {!auth.isAuthenticated ? (
+            {auth.isAuthenticated ? (
               <div className="flex w-full justify-between items-center gap-x-10">
                 <div className="flex flex-row justify-center items-center gap-x-4">
                   <Tooltip
