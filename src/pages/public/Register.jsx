@@ -1,5 +1,5 @@
 import { Alert, Button, Form, Input, Divider, Typography } from "antd";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   LockOutlined,
   UserOutlined,
@@ -19,9 +19,7 @@ const Register = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    document.title = "Register - E-commerce platform";
-  }, []);
+  document.title = "Register - E-commerce platform";
 
   const onFinish = async (values) => {
     setLoading(true);

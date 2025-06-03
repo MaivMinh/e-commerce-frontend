@@ -57,22 +57,8 @@ function App() {
               }
             />
             <Route path="/" element={<MainLayout />}>
-              <Route
-                index
-                element={
-                  <PublicRoute>
-                    <Home />
-                  </PublicRoute>
-                }
-              />
-              <Route
-                path="/home"
-                element={
-                  <PublicRoute>
-                    <Home />
-                  </PublicRoute>
-                }
-              />
+              <Route index element={<Home />} />
+              <Route path="/home" element={<Home />} />
               <Route
                 path="/profile"
                 element={
@@ -92,9 +78,9 @@ function App() {
               <Route
                 path="/products"
                 element={
-                  <PrivateRoute>
+                  <PublicRoute>
                     <Product />
-                  </PrivateRoute>
+                  </PublicRoute>
                 }
               />
               <Route

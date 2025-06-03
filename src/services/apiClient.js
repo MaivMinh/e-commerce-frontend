@@ -24,7 +24,6 @@ const apiClient = axios.create({
 - Cuối cùng, ta gọi lại apiClient với config của error object.
 */
 
-
 const refreshToken = async () => {
   const refreshToken = localStorage.getItem("refresh-token");
   if (!refreshToken) {
@@ -32,7 +31,7 @@ const refreshToken = async () => {
   }
 
   return apiClient
-    .post("/api/auth/refresh-token", { refreshToken })
+    .get(`/api/auth/refresh-token?token=${refreshToken}`)
     .then((response) => {
       const payload = response.data;
       const data = payload.data;

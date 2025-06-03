@@ -60,7 +60,6 @@ const { Title, Text, Paragraph } = Typography;
 const ProductDetail = () => {
   const params = useParams();
   const slug = params.slug;
-  const { auth } = useContext(AuthContext);
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +88,6 @@ const ProductDetail = () => {
   const [api, contextHolder] = notification.useNotification();
 
   const [isAddToCart, setIsAddToCart] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
 
   ///Hàm fetch review giả lập
   useEffect(() => {
@@ -161,7 +159,7 @@ const ProductDetail = () => {
     ];
 
     setReviews(mockReviews);
-  }, [reviewPage, reviewFilter]);
+  }, [reviewPage, reviewFilter, slug]);
 
   // Format thời gian
   const formatReviewDate = (dateString) => {
@@ -245,79 +243,61 @@ const ProductDetail = () => {
   };
 
   useEffect(() => {
-    if (!auth.isAuthenticated) {
-      const fetchProductDetail = async () => {
-        try {
-          // For demo purposes, we'll use the provided data instead of API call
-          const response = await apiClient.get(
-            `/api/products/slug?name=${slug}`
-          );
-          const product = response.data.data;
-          setProduct(product);
+    const fetchProductDetail = async () => {
+      try {
+        // For demo purposes, we'll use the provided data instead of API call
+        const response = await apiClient.get(`/api/products/slug?name=${slug}`);
+        const product = response.data.data;
+        setProduct(product);
 
-          const variantsResponse = await apiClient.get(
-            `/api/products/${product.id}/variants`
-          );
-          const variants = variantsResponse.data.data;
-          setVariants(variants);
-          /* 
-            id: "017ad363-821b-4a60-9682-730fddb61d13",
-            productId: "017ad363-821b-4a60-9682-730fddb61d13",
-            colorHex: "#FF5733",
-            colorName: "Đỏ",
-            size: "M",
-            price: 99999.99,
-            quantity: 100,
-          */
+        const variantsResponse = await apiClient.get(
+          `/api/products/${product.id}/variants`
+        );
+        const variants = variantsResponse.data.data;
+        setVariants(variants);
 
-          const sizes = Array.from(
-            new Set(variants.map((variant) => variant.size))
-          );
-          const colors = {};
-          variants.forEach((variant) => {
-            if (!colors[variant.size]) {
-              colors[variant.size] = [];
-            }
-            colors[variant.size].push({
-              name: variant.colorName,
-              hex: variant.colorHex,
-            });
+        const sizes = Array.from(
+          new Set(variants.map((variant) => variant.size))
+        );
+        const colors = {};
+        variants.forEach((variant) => {
+          if (!colors[variant.size]) {
+            colors[variant.size] = [];
+          }
+          colors[variant.size].push({
+            name: variant.colorName,
+            hex: variant.colorHex,
           });
-          setSizes(sizes);
-          setColors(colors);
-          setPricing(
-            variants.reduce((acc, variant) => {
-              if (!acc[variant.size]) {
-                acc[variant.size] = {};
-              }
-              acc[variant.size][variant.colorName] = variant.price;
-              return acc;
-            }, {})
-          );
-          setLoading(false);
-        } catch (error) {
-          console.error("Error fetching product details:", error);
-          setError("Có lỗi xảy ra khi lấy thông tin sản phẩm.");
-          setLoading(false);
-        } finally {
-          setLoading(false);
-        }
-      };
-      document.title = "Chi tiết sản phẩm | E-commerce Shop";
-      fetchProductDetail();
-    } else {
-      navigate("/login", {
-        state: { from: window.location.pathname },
-        replace: true,
-      });
-    }
-  }, [auth, slug]);
+        });
+        setSizes(sizes);
+        setColors(colors);
+        setPricing(
+          variants.reduce((acc, variant) => {
+            if (!acc[variant.size]) {
+              acc[variant.size] = {};
+            }
+            acc[variant.size][variant.colorName] = variant.price;
+            return acc;
+          }, {})
+        );
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching product details:", error);
+        setError("Có lỗi xảy ra khi lấy thông tin sản phẩm.");
+        setLoading(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    document.title = "Chi tiết sản phẩm | E-commerce Shop";
+    fetchProductDetail();
+  }, [slug]);
 
   const handleSizeChange = (e) => {
     const size = e.target.value;
     setSelectedSize(size);
     setSelectedColor(null);
-    handleQuantityDisplay(null)
+    handleQuantityDisplay(null);
   };
 
   const handleColorChange = (colorName) => {
@@ -352,8 +332,7 @@ const ProductDetail = () => {
     }
     /// Lấy thông tin variant hiện tại dựa trên size và color đã chọn
     const variant = variants.find(
-      (v) =>
-        v.size === selectedSize && v.colorName === selectedColor
+      (v) => v.size === selectedSize && v.colorName === selectedColor
     );
     if (!variant) {
       openErrorNotification(
@@ -365,11 +344,11 @@ const ProductDetail = () => {
     console.log(variant);
     try {
       const data = {
-        "productVariantDTO": {
-          "id": variant.id,
+        productVariantDTO: {
+          id: variant.id,
         },
-        "quantity": quantity,
-      }
+        quantity: quantity,
+      };
       const response = await apiClient.post("/api/carts/anonymous/items", data);
       openSuccessNofitication(
         "Đã thêm vào giỏ hàng",

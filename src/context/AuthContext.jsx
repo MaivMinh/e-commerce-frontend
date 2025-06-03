@@ -1,5 +1,6 @@
 import { jwtDecode } from "jwt-decode";
 import React, { createContext, useState, useEffect, useContext } from "react";
+import apiClient from "../services/apiClient.js";
 
 export const AuthContext = createContext({
   auth: {
@@ -9,11 +10,30 @@ export const AuthContext = createContext({
   loading: null,
   login: () => {},
   logout: () => {},
+  profile: {
+    id: null,
+    username: null,
+    email: null,
+    name: null,
+    role: null,
+    avatar: null,
+    addressDTOs: [],
+  },
 });
+
 export const AuthContextProvider = ({ children }) => {
   const [auth, setAuth] = useState({
     isAuthenticated: null,
     accountId: null,
+  });
+  const [profile, setProfile] = useState({
+    id: null,
+    username: null,
+    email: null,
+    name: null,
+    role: null,
+    avatar: null,
+    addressDTOs: [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -21,12 +41,24 @@ export const AuthContextProvider = ({ children }) => {
     const token = localStorage.getItem("access-token");
     if (token) {
       handleLogin(token);
-    } else  {
+    } else {
       setAuth((prev) => {
         return {
           ...prev,
           isAuthenticated: false,
           accountId: null,
+        };
+      });
+      setProfile((prev) => {
+        return {
+          ...prev,
+          id: null,
+          username: null,
+          email: null,
+          name: null,
+          role: null,
+          avatar: null,
+          addressDTOs: [],
         };
       });
       localStorage.removeItem("access-token");
@@ -35,6 +67,21 @@ export const AuthContextProvider = ({ children }) => {
     }
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (auth.isAuthenticated) {
+      const fetchProfileData = async () => {
+        if (localStorage.getItem("profile")) {
+          setProfile(JSON.parse(localStorage.getItem("profile")));
+          return;
+        }
+        const response = await apiClient.get(`/api/user/profile`);
+        setProfile(response.data.data);
+        localStorage.setItem("profile", JSON.stringify(response.data.data));
+      };
+      fetchProfileData();
+    }
+  }, [auth]);
 
   function handleLogin(token) {
     try {
@@ -84,6 +131,7 @@ export const AuthContextProvider = ({ children }) => {
         loading: loading,
         login: handleLogin,
         logout: handleLogout,
+        profile: profile,
       }}
     >
       {children}

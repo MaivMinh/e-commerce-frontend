@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { Carousel, Card, Button, Pagination, Spin, Typography } from "antd";
 import {
   ShoppingCartOutlined,
@@ -7,6 +7,7 @@ import {
 } from "@ant-design/icons";
 import apiClient from "../../services/apiClient.js";
 import { Link, useNavigate } from "react-router-dom";
+import { AuthContext } from "../../context/AuthContext.jsx";
 
 const { Title, Text } = Typography;
 const { Meta } = Card;
@@ -52,12 +53,10 @@ const Home = () => {
     },
   ];
 
-  // Simulated product data - replace with actual API call
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        // Replace with your actual API endpoint
         const response = await apiClient.get(
           `/api/products?page=${currentPage}&size=${pageSize}&sort=${sort}`
         );
@@ -65,14 +64,13 @@ const Home = () => {
         setTotalProducts(response.data.data.totalElements);
       } catch (error) {
         console.error("Failed to fetch products:", error);
-        setLoading(false);
       } finally {
         setLoading(false);
       }
     };
 
     fetchProducts();
-  }, [currentPage]);
+  }, [currentPage, pageSize, sort]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);

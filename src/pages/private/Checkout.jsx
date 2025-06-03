@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   Typography,
   Button,
@@ -30,36 +30,14 @@ import {
   LockOutlined,
   InfoCircleOutlined,
   CheckOutlined,
+  SoundTwoTone,
 } from "@ant-design/icons";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
+import { AuthContext } from "../../context/AuthContext";
+import apiClient from "../../services/apiClient";
 
 const { Title, Text, Paragraph } = Typography;
-const { Option } = Select;
-const { Step } = Steps;
-
-const addresses = [
-  {
-    id: 1,
-    fullName: "Nguyễn Văn A",
-    phone: "0987654321",
-    address: "123 Đường Lê Lợi",
-    ward: "Phường Bến Nghé",
-    district: "Quận 1",
-    city: "TP. Hồ Chí Minh",
-    isDefault: true,
-  },
-  {
-    id: 2,
-    fullName: "Nguyễn Văn A",
-    phone: "0987654321",
-    address: "456 Đường Nguyễn Huệ",
-    ward: "Phường Bến Thành",
-    district: "Quận 1",
-    city: "TP. Hồ Chí Minh",
-    isDefault: false,
-  },
-];
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -78,43 +56,48 @@ const Checkout = () => {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const { profile, auth } = useContext(AuthContext);
+  const [addresses, setAddresses] = useState([]);
 
   // Mock shipping fee
   const shippingFee = 30000;
 
   // Load cart data
   useEffect(() => {
-    setTimeout(() => {
-      const selectedCartItems = JSON.parse(
-        localStorage.getItem("selected-cart-items") || "[]"
-      );
-      console.log(selectedCartItems.length);
-      if (selectedCartItems.length === 0) {
-        notification.warning({
-          message: "Giỏ hàng trống",
-          description:
-            "Vui lòng thêm sản phẩm vào giỏ hàng trước khi thanh toán.",
-        });
-        navigate("/cart");
-        return;
-      }
-      setCartItems(selectedCartItems);
+    if (auth.isAuthenticated && profile.id) {
+      setTimeout(() => {
+        const selectedCartItems = JSON.parse(
+          localStorage.getItem("selected-cart-items") || "[]"
+        );
+        if (selectedCartItems.length === 0) {
+          notification.warning({
+            message: "Giỏ hàng trống",
+            description:
+              "Vui lòng thêm sản phẩm vào giỏ hàng trước khi thanh toán.",
+          });
+          navigate("/cart");
+          return;
+        }
+        setCartItems(selectedCartItems);
 
-      const appliedVoucher = JSON.parse(
-        localStorage.getItem("applied-voucher") || "null"
-      );
-      setAppliedVoucher(appliedVoucher);
+        const appliedVoucher = JSON.parse(
+          localStorage.getItem("applied-voucher") || "null"
+        );
+        setAppliedVoucher(appliedVoucher);
 
-      // Set default address
-      const defaultAddress = addresses.find((addr) => addr.isDefault);
-      if (defaultAddress) {
-        setSelectedAddress(defaultAddress.id);
-      } else if (addresses.length > 0) {
-        setSelectedAddress(addresses[0].id);
-      }
-      setLoading(false);
-    }, 1000);
-  }, []);
+        // Set default address
+        const addresses = profile.addressDTOs;
+        setAddresses(addresses);
+        const defaultAddress = addresses.find((addr) => addr.isDefault);
+        if (defaultAddress) {
+          setSelectedAddress(defaultAddress.id);
+        } else if (addresses.length > 0) {
+          setSelectedAddress(addresses[0].id);
+        }
+        setLoading(false);
+      }, 1000);
+    }
+  }, [auth, profile]);
 
   // Calculate subtotal
   const calculateSubtotal = () => {
@@ -170,22 +153,75 @@ const Checkout = () => {
       if (paymentMethod === "e_wallet") {
         setShowQRModal(true);
       } else {
-        processPayment();
+        await processPayment();
       }
     }
   };
 
-  // Simulate payment processing
-  const processPayment = () => {
+  // Modify processPayment to match backend DTO structure
+  const processPayment = async () => {
     setPaymentProcessing(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const selectedAddressInfo = getSelectedAddressInfo();
+
+      // Calculate financial values
+      const subTotal = calculateSubtotal();
+      const discount = calculateDiscount();
+      const total = calculateTotal();
+
+      // Create order items with price and total
+      const orderItems = cartItems.map((item) => ({
+        productVariantId: item.productVariantDTO.id,
+        quantity: item.quantity,
+        price: item.productVariantDTO.price,
+        total: item.productVariantDTO.price * item.quantity,
+      }));
+
+      // Format the request payload to match OrderDTO
+      const orderPayload = {
+        accountId: profile.id,
+        shippingAddress: selectedAddressInfo
+          ? `${selectedAddressInfo.fullName}, ${selectedAddressInfo.phone}, ${selectedAddressInfo.fullAddress}`
+          : "",
+        subTotal: subTotal,
+        discount: discount,
+        total: total,
+        paymentMethod:
+          paymentMethod +
+          (paymentMethod === "e_wallet" ? `_${selectedWallet}` : ""),
+        promotionId: appliedVoucher ? appliedVoucher.id : null,
+        note: form.getFieldValue("note") || "",
+        orderItemDTOs: orderItems,
+      };
+
+      console.log("Sending order payload:", orderPayload);
+      const response = await apiClient.post(`/api/orders`, orderPayload);
+
+      // After successful order creation
+      localStorage.removeItem("selected-cart-items");
+      localStorage.removeItem("applied-voucher");
+
       setPaymentProcessing(false);
       setShowQRModal(false);
       setOrderPlaced(true);
       setShowSuccessModal(true);
-    }, 2000);
+
+      notification.success({
+        message: "Đặt hàng thành công",
+        description: `Mã đơn hàng: ${response.data.orderId}. Cảm ơn bạn đã mua sắm tại Shop!`,
+      });
+    } catch (error) {
+      setPaymentProcessing(false);
+      console.error("Order creation failed:", error);
+
+      notification.error({
+        message: "Đặt hàng thất bại",
+        description:
+          error.response?.data?.message ||
+          "Có lỗi xảy ra khi xử lý đơn hàng. Vui lòng thử lại.",
+      });
+    }
   };
 
   // Handle wallet selection
@@ -199,7 +235,7 @@ const Checkout = () => {
     if (!address) return null;
 
     return {
-      fullAddress: `${address.address}, ${address.ward}, ${address.district}, ${address.city}`,
+      fullAddress: `${address.address}`,
       fullName: address.fullName,
       phone: address.phone,
     };
@@ -277,8 +313,7 @@ const Checkout = () => {
                                       </div>
                                     </div>
                                     <div className="text-gray-600 mt-1">
-                                      {address.address}, {address.ward},{" "}
-                                      {address.district}, {address.city}
+                                      {address.address}
                                     </div>
                                     {address.isDefault && (
                                       <Tag color="blue" className="mt-2">
@@ -590,17 +625,24 @@ const Checkout = () => {
                         }
                         description={
                           <div className="text-gray-500 text-sm">
-                            Size: {item.productVariantDTO.size}, Màu: {item.productVariantDTO.colorName}
+                            Size: {item.productVariantDTO.size}, Màu:{" "}
+                            {item.productVariantDTO.colorName}
                           </div>
                         }
                       />
                       <div className="text-right">
                         <div className="font-medium">
-                          {formatPrice(item.productVariantDTO.price * item.quantity)}
+                          {formatPrice(
+                            item.productVariantDTO.price * item.quantity
+                          )}
                         </div>
-                        {item.productVariantDTO.originalPrice > item.productVariantDTO.price && (
+                        {item.productVariantDTO.originalPrice >
+                          item.productVariantDTO.price && (
                           <div className="text-xs line-through text-gray-500">
-                            {formatPrice(item.productVariantDTO.originalPrice * item.quantity)}
+                            {formatPrice(
+                              item.productVariantDTO.originalPrice *
+                                item.quantity
+                            )}
                           </div>
                         )}
                       </div>

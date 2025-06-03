@@ -9,6 +9,7 @@ import {
   ShoppingCartOutlined,
   UserOutlined,
 } from "@ant-design/icons";
+import apiClient from "../services/apiClient";
 
 const Header = () => {
   const { auth, logout } = useContext(AuthContext);
@@ -36,9 +37,16 @@ const Header = () => {
     navigate(`/search?query=${encodeURIComponent(value)}`);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      const accessToken = localStorage.getItem("access-token");
+      await apiClient.post(`/api/auth/logout?token=${accessToken}`);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      logout();
+      navigate("/login");
+    }
   };
 
   const handleSearchChange = (value) => {
@@ -86,8 +94,6 @@ const Header = () => {
               onSelect={handleSearch}
               onSearch={handleSearchChange}
               value={searchValue}
-              dropdownClassName="search-dropdown font-display"
-              dropdownMatchSelectWidth={500}
             >
               <Input.Search
                 placeholder="Tìm kiếm quần áo, trang sức và nhiều hơn nữa..."

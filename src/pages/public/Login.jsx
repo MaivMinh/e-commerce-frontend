@@ -43,6 +43,11 @@ const Login = () => {
   const from = location.state?.from?.pathname || "/"; /// Redirect after login.
 
   useEffect(() => {
+    if (auth?.isAuthenticated) {
+      navigate(from, { replace: true });
+      return;
+    }
+
     // Optional: Add a simple animation when the component mounts
     document.title = "Login - E-commerce Shop";
     if (expired && expired === "true") {
@@ -69,7 +74,7 @@ const Login = () => {
         );
       }, 3500);
     }
-  }, [registered]);
+  }, []);
 
   const onFinish = async (values) => {
     setLoading(true);

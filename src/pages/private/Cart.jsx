@@ -26,6 +26,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import apiClient from "../../services/apiClient";
 import { CartContext } from "../../context/CartContext";
+import { AuthContext } from "../../context/AuthContext";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -33,6 +34,7 @@ const { Option } = Select;
 const Cart = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
+  const { auth } = useContext(AuthContext);
   const [selectedItems, setSelectedItems] = useState([]);
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,24 +44,26 @@ const Cart = () => {
 
   // Fetch cart items (mocked)
   useEffect(() => {
-    const fetchCartItems = async () => {
-      try {
-        const response = await apiClient.get("/api/carts/anonymous");
-        setCartItems(response.data.data.items || []);
-        console.log(response.data.data.items);
-        setSelectedItems(response.data.data.items.map((item) => item.id));
-      } catch (error) {
-        console.error("Failed to fetch cart items:", error);
-        notification.error({
-          message: "Lỗi",
-          description: "Không thể tải giỏ hàng. Vui lòng thử lại sau.",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCartItems();
-  }, []);
+    if (auth.isAuthenticated) {
+      const fetchCartItems = async () => {
+        try {
+          const response = await apiClient.get("/api/carts/anonymous");
+          setCartItems(response.data.data.items || []);
+          console.log(response.data.data.items);
+          setSelectedItems(response.data.data.items.map((item) => item.id));
+        } catch (error) {
+          console.error("Failed to fetch cart items:", error);
+          notification.error({
+            message: "Lỗi",
+            description: "Không thể tải giỏ hàng. Vui lòng thử lại sau.",
+          });
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchCartItems();
+    }
+  }, [auth]);
 
   const openErrorNotification = (message) => {
     api.open({
