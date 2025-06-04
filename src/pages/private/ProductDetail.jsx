@@ -61,6 +61,7 @@ const ProductDetail = () => {
   const params = useParams();
   const slug = params.slug;
   const navigate = useNavigate();
+  const {auth} = useContext(AuthContext);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -341,7 +342,6 @@ const ProductDetail = () => {
       setIsAddToCartProcessing(false);
       return;
     }
-    console.log(variant);
     try {
       const data = {
         productVariantDTO: {
@@ -349,7 +349,7 @@ const ProductDetail = () => {
         },
         quantity: quantity,
       };
-      const response = await apiClient.post("/api/carts/anonymous/items", data);
+      const response = await apiClient.post(`/api/carts/${auth.accountId}/items`, data);
       openSuccessNofitication(
         "Đã thêm vào giỏ hàng",
         `Đã thêm ${product.name} (${selectedSize}, ${selectedColor}) x${quantity} vào giỏ hàng.`

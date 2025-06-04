@@ -36,9 +36,10 @@ const Cart = () => {
   const [cartItems, setCartItems] = useState([]);
   const { auth } = useContext(AuthContext);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [appliedPromotion, setAppliedPromotion] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [voucherCode, setVoucherCode] = useState("");
+  const [promotionCode, setPromotionCode] = useState("");
+  const [promotions, setPromotions] = useState([]);
   const [api, contextHolder] = notification.useNotification();
   const shippingFee = 30000;
 
@@ -47,7 +48,7 @@ const Cart = () => {
     if (auth.isAuthenticated) {
       const fetchCartItems = async () => {
         try {
-          const response = await apiClient.get("/api/carts/anonymous");
+          const response = await apiClient.get(`/api/carts/${auth.accountId}`);
           setCartItems(response.data.data.items || []);
           console.log(response.data.data.items);
           setSelectedItems(response.data.data.items.map((item) => item.id));
@@ -65,6 +66,18 @@ const Cart = () => {
     }
   }, [auth]);
 
+  useEffect(() => {
+    const fetchPromotions = async () => {
+      try {
+        const response = await apiClient.get("/api/promotions?status=active");
+        setPromotions(response.data.data || []);
+      } catch (error) {
+        console.error("Failed to fetch promotions:", error);
+      }
+    };
+    fetchPromotions();
+  }, []);
+
   const openErrorNotification = (message) => {
     api.open({
       message: <span className="text-red-500">Thông báo</span>,
@@ -77,29 +90,6 @@ const Cart = () => {
       duration: 3,
     });
   };
-
-  // Mock vouchers
-  const vouchers = [
-    {
-      code: "SUMMER25",
-      discount: 0.25,
-      type: "percentage",
-      description: "Giảm 25% tổng đơn hàng",
-    },
-    {
-      code: "FREESHIP",
-      discount: 30000,
-      type: "shipping",
-      description: "Miễn phí vận chuyển",
-    },
-    {
-      code: "SALE100K",
-      discount: 100000,
-      type: "fixed",
-      description: "Giảm 100.000₫",
-    },
-  ];
-
   // Handle quantity change
   let timeoutId = null;
   const handleQuantityChange = (record, value) => {
@@ -167,14 +157,14 @@ const Cart = () => {
     }
   };
 
-  // Apply voucher
-  const handleApplyVoucher = () => {
-    const voucher = vouchers.find((v) => v.code === voucherCode);
-    if (voucher) {
-      setAppliedVoucher(voucher);
+  // Apply promotion
+  const handleApplyPromotion = () => {
+    const promotion = promotions.find((v) => v.code === promotionCode);
+    if (promotion) {
+      setAppliedPromotion(promotion);
       notification.success({
         message: "Áp dụng mã giảm giá thành công",
-        description: voucher.description,
+        description: promotion.description,
       });
     } else {
       notification.error({
@@ -182,12 +172,12 @@ const Cart = () => {
         description: "Mã giảm giá không tồn tại hoặc đã hết hạn.",
       });
     }
-    setVoucherCode("");
+    setPromotionCode("");
   };
 
-  // Remove voucher
-  const handleRemoveVoucher = () => {
-    setAppliedVoucher(null);
+  // Remove promotion
+  const handleRemovePromotion = () => {
+    setAppliedPromotion(null);
     notification.info({
       message: "Đã xóa mã giảm giá",
       description: "Mã giảm giá đã được xóa khỏi đơn hàng.",
@@ -206,8 +196,8 @@ const Cart = () => {
       "selected-cart-items",
       JSON.stringify(selectedCartItems)
     );
-    localStorage.removeItem("applied-voucher");
-    localStorage.setItem("applied-voucher", JSON.stringify(appliedVoucher));
+    localStorage.removeItem("applied-promotion");
+    localStorage.setItem("applied-promotion", JSON.stringify(appliedPromotion));
     navigate("/checkout");
   };
 
@@ -223,17 +213,15 @@ const Cart = () => {
 
   // Calculate discount amount
   const calculateDiscount = () => {
-    if (!appliedVoucher) return 0;
+    if (!appliedPromotion) return 0;
     const subtotal = calculateSubtotal();
-
-    if (appliedVoucher.type === "percentage") {
-      return subtotal * appliedVoucher.discount;
-    } else if (appliedVoucher.type === "fixed") {
-      return appliedVoucher.discount;
-    } else if (appliedVoucher.type === "shipping") {
-      return shippingFee;
+    if (appliedPromotion.type === "percentage") {
+      return subtotal * appliedPromotion.discountValue / 100;
+    } else if (appliedPromotion.type === "fixed") {
+      return appliedPromotion.discountValue;
+    } else if (appliedPromotion.type === "shipping") {
+      return appliedPromotion.discountValue;
     }
-
     return 0;
   };
 
@@ -241,7 +229,7 @@ const Cart = () => {
   const calculateTotal = () => {
     const subtotal = calculateSubtotal();
     const discount = calculateDiscount();
-    const shipping = appliedVoucher?.type === "shipping" ? 0 : shippingFee;
+    const shipping = 30000; // Default shipping fee
     return subtotal - discount + shipping;
   };
 
@@ -362,10 +350,10 @@ const Cart = () => {
     },
   ];
 
-  // Select before for voucher input
+  // Select before for promotion input
   const selectBefore = (
-    <Select defaultValue="voucher" className="w-28">
-      <Option value="voucher">Voucher</Option>
+    <Select defaultValue="promotion" className="w-28">
+      <Option value="promotion">Voucher</Option>
     </Select>
   );
 
@@ -477,13 +465,13 @@ const Cart = () => {
                   <div className="flex justify-between">
                     <Text>Phí vận chuyển:</Text>
                     <Text>
-                      {appliedVoucher?.type === "shipping"
+                      {appliedPromotion?.type === "shipping"
                         ? "Miễn phí"
                         : formatPrice(shippingFee)}
                     </Text>
                   </div>
 
-                  {appliedVoucher && (
+                  {appliedPromotion && (
                     <div className="flex justify-between text-green-600">
                       <div className="flex items-center">
                         <Text className="text-green-600">Giảm giá:</Text>
@@ -492,7 +480,7 @@ const Cart = () => {
                           size="small"
                           danger
                           className="ml-2 p-0 h-auto"
-                          onClick={handleRemoveVoucher}
+                          onClick={handleRemovePromotion}
                         >
                           <DeleteOutlined />
                         </Button>
@@ -515,20 +503,20 @@ const Cart = () => {
                   </Title>
                 </div>
 
-                {!appliedVoucher && (
+                {!appliedPromotion && (
                   <div className="mb-6">
                     <div className="flex mb-2">
                       <Input
                         addonBefore={selectBefore}
                         placeholder="Nhập mã giảm giá"
-                        value={voucherCode}
-                        onChange={(e) => setVoucherCode(e.target.value)}
+                        value={promotionCode}
+                        onChange={(e) => setPromotionCode(e.target.value)}
                         suffix={
                           <Button
                             type="primary"
                             size="small"
-                            onClick={handleApplyVoucher}
-                            disabled={!voucherCode}
+                            onClick={handleApplyPromotion}
+                            disabled={!promotionCode}
                             className="bg-indigo-600"
                           >
                             Áp dụng
@@ -538,8 +526,15 @@ const Cart = () => {
                     </div>
 
                     <div className="text-sm text-gray-500 flex items-center">
-                      <TagOutlined className="mr-1" /> Các mã hiện có: SUMMER25,
-                      FREESHIP, SALE100K
+                      <TagOutlined className="mr-1" />
+                      {promotions.length > 0 ? (
+                        <>
+                          Các mã hiện có:{" "}
+                          {promotions.map((promo) => promo.code).join(", ")}
+                        </>
+                      ) : (
+                        "Hiện không có mã giảm giá"
+                      )}
                     </div>
                   </div>
                 )}

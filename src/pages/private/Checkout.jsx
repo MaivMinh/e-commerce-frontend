@@ -48,14 +48,15 @@ const Checkout = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [cartItems, setCartItems] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState("e_wallet");
+  const [paymentMethodCode, setPaymentMethodCode] = useState(null);
+  const [paymentMethods, setPaymentMethods] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState("momo");
   const [showQRModal, setShowQRModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
-  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [appliedPromotion, setAppliedPromotion] = useState(null);
   const { profile, auth } = useContext(AuthContext);
   const [addresses, setAddresses] = useState([]);
 
@@ -65,7 +66,7 @@ const Checkout = () => {
   // Load cart data
   useEffect(() => {
     if (auth.isAuthenticated && profile.id) {
-      setTimeout(() => {
+      setTimeout(async () => {
         const selectedCartItems = JSON.parse(
           localStorage.getItem("selected-cart-items") || "[]"
         );
@@ -80,10 +81,10 @@ const Checkout = () => {
         }
         setCartItems(selectedCartItems);
 
-        const appliedVoucher = JSON.parse(
-          localStorage.getItem("applied-voucher") || "null"
+        const appliedPromotion = JSON.parse(
+          localStorage.getItem("applied-promotion") || "null"
         );
-        setAppliedVoucher(appliedVoucher);
+        setAppliedPromotion(appliedPromotion);
 
         // Set default address
         const addresses = profile.addressDTOs;
@@ -94,6 +95,23 @@ const Checkout = () => {
         } else if (addresses.length > 0) {
           setSelectedAddress(addresses[0].id);
         }
+
+        /// fetch payment method.
+        await apiClient
+          .get("/api/payment-methods")
+          .then((response) => {
+            const methods = response.data.data;
+            setPaymentMethods(methods);
+
+            // Set default payment method if available
+            if (methods.length > 0) {
+              setPaymentMethodCode(methods[0].code);
+            }
+          })
+          .catch((error) => {
+            console.log(error);
+          });
+
         setLoading(false);
       }, 1000);
     }
@@ -109,14 +127,14 @@ const Checkout = () => {
 
   // Calculate discount amount
   const calculateDiscount = () => {
-    if (!appliedVoucher) return 0;
+    if (!appliedPromotion) return 0;
     const subtotal = calculateSubtotal();
-    if (appliedVoucher.type === "percentage") {
-      return subtotal * appliedVoucher.discount;
-    } else if (appliedVoucher.type === "fixed") {
-      return appliedVoucher.discount;
-    } else if (appliedVoucher.type === "shipping") {
-      return shippingFee;
+    if (appliedPromotion.type === "percentage") {
+      return (subtotal * appliedPromotion.discountValue) / 100;
+    } else if (appliedPromotion.type === "fixed") {
+      return appliedPromotion.discountValue;
+    } else if (appliedPromotion.type === "shipping") {
+      return appliedPromotion.discountValue;
     }
     return 0;
   };
@@ -150,7 +168,7 @@ const Checkout = () => {
       window.scrollTo(0, 0);
     } else if (currentStep === 1) {
       // Submit payment
-      if (paymentMethod === "e_wallet") {
+      if (isPaymentMethodType("e_wallet")) {
         setShowQRModal(true);
       } else {
         await processPayment();
@@ -158,12 +176,23 @@ const Checkout = () => {
     }
   };
 
-  // Modify processPayment to match backend DTO structure
+  const getSelectedPaymentMethod = () => {
+    return paymentMethods.find((method) => method.code === paymentMethodCode);
+  };
+  // Add function to check if payment method is of a specific type
+  const isPaymentMethodType = (type) => {
+    const method = getSelectedPaymentMethod();
+    return method && method.type === type;
+  };
+
   const processPayment = async () => {
     setPaymentProcessing(true);
-
     try {
       const selectedAddressInfo = getSelectedAddressInfo();
+      const selectedPaymentMethod = getSelectedPaymentMethod();
+      if (!selectedPaymentMethod) {
+        throw new Error("Phương thức thanh toán không hợp lệ.");
+      }
 
       // Calculate financial values
       const subTotal = calculateSubtotal();
@@ -180,18 +209,15 @@ const Checkout = () => {
 
       // Format the request payload to match OrderDTO
       const orderPayload = {
-        accountId: profile.id,
-        shippingAddress: selectedAddressInfo
-          ? `${selectedAddressInfo.fullName}, ${selectedAddressInfo.phone}, ${selectedAddressInfo.fullAddress}`
-          : "",
+        accountId: auth.accountId,
+        shippingAddressId: selectedAddressInfo.id,
         subTotal: subTotal,
         discount: discount,
         total: total,
-        paymentMethod:
-          paymentMethod +
-          (paymentMethod === "e_wallet" ? `_${selectedWallet}` : ""),
-        promotionId: appliedVoucher ? appliedVoucher.id : null,
+        paymentMethodId: selectedPaymentMethod.paymentMethodId,
+        promotionId: appliedPromotion ? appliedPromotion.id : null,
         note: form.getFieldValue("note") || "",
+        currency: "vnd",
         orderItemDTOs: orderItems,
       };
 
@@ -200,7 +226,7 @@ const Checkout = () => {
 
       // After successful order creation
       localStorage.removeItem("selected-cart-items");
-      localStorage.removeItem("applied-voucher");
+      localStorage.removeItem("applied-promotion");
 
       setPaymentProcessing(false);
       setShowQRModal(false);
@@ -209,7 +235,7 @@ const Checkout = () => {
 
       notification.success({
         message: "Đặt hàng thành công",
-        description: `Mã đơn hàng: ${response.data.orderId}. Cảm ơn bạn đã mua sắm tại Shop!`,
+        description: `Cảm ơn bạn đã mua sắm tại Shop! Vui lòng kiểm tra email để biết thêm chi tiết.`,
       });
     } catch (error) {
       setPaymentProcessing(false);
@@ -233,12 +259,7 @@ const Checkout = () => {
   const getSelectedAddressInfo = () => {
     const address = addresses.find((addr) => addr.id === selectedAddress);
     if (!address) return null;
-
-    return {
-      fullAddress: `${address.address}`,
-      fullName: address.fullName,
-      phone: address.phone,
-    };
+    return address;
   };
 
   return (
@@ -376,110 +397,68 @@ const Checkout = () => {
                       toán
                     </Title>
 
-                    <Form
-                      form={form}
-                      layout="vertical"
-                      onFinish={handleSubmit}
-                      initialValues={{
-                        payment_method: paymentMethod,
-                        wallet: selectedWallet,
-                      }}
-                    >
+                    <Form form={form} layout="vertical" onFinish={handleSubmit}>
                       <Form.Item name="payment_method" className="mb-6">
                         <Radio.Group
-                          onChange={(e) => setPaymentMethod(e.target.value)}
-                          className="w-full space-y-2"
+                          onChange={(e) => setPaymentMethodCode(e.target.value)}
+                          value={paymentMethodCode}
+                          className="w-full space-y-4"
                         >
-                          <Radio.Button
-                            value="credit_card"
-                            className="flex items-center h-auto p-4 w-full text-left mb-2"
-                          >
-                            <CreditCardOutlined className="text-xl mr-2" /> Thẻ
-                            tín dụng / ghi nợ
-                          </Radio.Button>
-                          <Radio.Button
-                            value="bank_transfer"
-                            className="flex items-center h-auto p-4 w-full text-left mb-2"
-                          >
-                            <BankOutlined className="text-xl mr-2" /> Chuyển
-                            khoản ngân hàng
-                          </Radio.Button>
-                          <Radio.Button
-                            value="e_wallet"
-                            className="flex items-center h-auto p-4 w-full text-left mb-2"
-                          >
-                            <WalletOutlined className="text-xl mr-2" /> Ví điện
-                            tử
-                          </Radio.Button>
-                          <Radio.Button
-                            value="cod"
-                            className="flex items-center h-auto p-4 w-full text-left mb-2"
-                          >
-                            <DollarOutlined className="text-xl mr-2" /> Thanh
-                            toán khi nhận hàng (COD)
-                          </Radio.Button>
+                          {paymentMethods.map((method) => (
+                            <Radio.Button
+                              key={method.paymentMethodId}
+                              value={method.code}
+                              className="flex items-center h-auto p-4 w-full text-left mb-2"
+                              style={{
+                                borderRadius: "8px",
+                                height: "40px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "flex-start",
+                              }}
+                            >
+                              <div className="flex items-center">
+                                {method.iconUrl ? (
+                                  <img
+                                    src={method.iconUrl}
+                                    alt={method.name}
+                                    className="w-6 h-6 mr-2"
+                                  />
+                                ) : (
+                                  <>
+                                    {method.type === "credit_card" && (
+                                      <CreditCardOutlined className="text-xl mr-2" />
+                                    )}
+                                    {method.type === "bank_transfer" && (
+                                      <BankOutlined className="text-xl mr-2" />
+                                    )}
+                                    {method.type === "e_wallet" && (
+                                      <WalletOutlined className="text-xl mr-2" />
+                                    )}
+                                    {method.type === "cod" && (
+                                      <DollarOutlined className="text-xl mr-2" />
+                                    )}
+                                  </>
+                                )}
+                                {method.name}
+                              </div>
+                            </Radio.Button>
+                          ))}
                         </Radio.Group>
                       </Form.Item>
 
-                      {paymentMethod === "e_wallet" && (
+                      {isPaymentMethodType("e_wallet") && (
                         <div className="ml-8 mb-6 p-4 bg-gray-50 rounded-lg">
-                          <Form.Item name="wallet" label="Chọn ví điện tử">
-                            <Radio.Group
-                              onChange={(e) =>
-                                handleWalletChange(e.target.value)
-                              }
-                              className="space-x-4"
-                            >
-                              <Radio.Button
-                                value="momo"
-                                className="p-2 h-16 w-20 flex justify-center items-center"
-                              >
-                                <div className="flex flex-col items-center">
-                                  <img
-                                    src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Icon-MoMo-Circle.png"
-                                    alt="MoMo"
-                                    className="w-8 h-8"
-                                  />
-                                  <span className="text-xs mt-1">MoMo</span>
-                                </div>
-                              </Radio.Button>
-                              <Radio.Button
-                                value="zalopay"
-                                className="p-2 h-16 w-20 flex justify-center items-center"
-                              >
-                                <div className="flex flex-col items-center">
-                                  <img
-                                    src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-ZaloPay-Square.png"
-                                    alt="ZaloPay"
-                                    className="w-8 h-8"
-                                  />
-                                  <span className="text-xs mt-1">ZaloPay</span>
-                                </div>
-                              </Radio.Button>
-                              <Radio.Button
-                                value="vnpay"
-                                className="p-2 h-16 w-20 flex justify-center items-center"
-                              >
-                                <div className="flex flex-col items-center">
-                                  <img
-                                    src="https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-VNPAY-QR-1.png"
-                                    alt="VNPay"
-                                    className="w-8 h-8"
-                                  />
-                                  <span className="text-xs mt-1">VNPay</span>
-                                </div>
-                              </Radio.Button>
-                            </Radio.Group>
-                          </Form.Item>
-
                           <Paragraph className="text-gray-500 text-sm">
                             <InfoCircleOutlined className="mr-1" /> Bạn sẽ quét
-                            mã QR để thanh toán sau khi xác nhận đơn hàng.
+                            mã QR để thanh toán qua{" "}
+                            {getSelectedPaymentMethod()?.provider || ""} sau khi
+                            xác nhận đơn hàng.
                           </Paragraph>
                         </div>
                       )}
 
-                      {paymentMethod === "credit_card" && (
+                      {isPaymentMethodType("credit_card") && (
                         <div className="ml-8 mb-6 p-4 bg-gray-50 rounded-lg">
                           <div className="space-y-4">
                             <Form.Item
@@ -549,14 +528,13 @@ const Checkout = () => {
                         </div>
                       )}
 
-                      {paymentMethod === "bank_transfer" && (
+                      {isPaymentMethodType("bank_transfer") && (
                         <div className="ml-8 mb-6 p-4 bg-gray-50 rounded-lg">
                           <Title level={5}>Thông tin chuyển khoản</Title>
                           <ul className="list-disc ml-5 text-gray-600">
                             <li>Ngân hàng: Vietcombank</li>
                             <li>Số tài khoản: 1234567890</li>
                             <li>Chủ tài khoản: CÔNG TY TNHH E-COMMERCE</li>
-                            <li>Nội dung: [Mã đơn hàng] - [Tên của bạn]</li>
                           </ul>
                           <div className="mt-4 text-gray-500 text-sm">
                             <InfoCircleOutlined className="mr-1" /> Đơn hàng sẽ
@@ -581,9 +559,7 @@ const Checkout = () => {
                             className="bg-indigo-600 hover:bg-indigo-700"
                             loading={paymentProcessing}
                           >
-                            {paymentMethod === "cod"
-                              ? "Đặt hàng"
-                              : "Thanh toán"}
+                            Đặt hàng
                           </Button>
                         </div>
                       </Form.Item>
@@ -673,7 +649,7 @@ const Checkout = () => {
                             {getSelectedAddressInfo().phone}
                           </div>
                           <div className="text-gray-600 text-sm mt-1">
-                            {getSelectedAddressInfo().fullAddress}
+                            {getSelectedAddressInfo().address}
                           </div>
                         </>
                       )}
@@ -690,13 +666,13 @@ const Checkout = () => {
                   <div className="flex justify-between">
                     <Text>Phí vận chuyển:</Text>
                     <Text>
-                      {appliedVoucher?.type === "shipping"
+                      {appliedPromotion?.type === "shipping"
                         ? "Miễn phí"
                         : formatPrice(shippingFee)}
                     </Text>
                   </div>
 
-                  {appliedVoucher && (
+                  {appliedPromotion && (
                     <div className="flex justify-between text-green-600">
                       <Text className="text-green-600">Giảm giá:</Text>
                       <Text strong className="text-green-600">
@@ -729,11 +705,7 @@ const Checkout = () => {
       {/* QR Code Payment Modal */}
       <Modal
         title={`Thanh toán qua ${
-          selectedWallet === "momo"
-            ? "MoMo"
-            : selectedWallet === "zalopay"
-            ? "ZaloPay"
-            : "VNPay"
+          getSelectedPaymentMethod()?.provider || "Ví điện tử"
         }`}
         open={showQRModal}
         onCancel={() => setShowQRModal(false)}
@@ -756,17 +728,14 @@ const Checkout = () => {
         <div className="text-center py-6">
           <div className="mb-4">
             <QRCodeSVG
-              value={`https://payment.example.com/${selectedWallet}/checkout?amount=${calculateTotal()}&orderId=ORDER123456`}
+              value={`https://payment.example.com/${
+                getSelectedPaymentMethod()?.provider?.toLowerCase() || "wallet"
+              }/checkout?amount=${calculateTotal()}&orderId=ORDER123456`}
               size={200}
               level="H"
               className="mx-auto"
               imageSettings={{
-                src:
-                  selectedWallet === "momo"
-                    ? "https://cdn.haitrieu.com/wp-content/uploads/2022/10/Icon-MoMo-Circle.png"
-                    : selectedWallet === "zalopay"
-                    ? "https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-ZaloPay-Square.png"
-                    : "https://cdn.haitrieu.com/wp-content/uploads/2022/10/Logo-VNPAY-QR-1.png",
+                src: getSelectedPaymentMethod()?.iconUrl || "",
                 height: 40,
                 width: 40,
                 excavate: true,
@@ -780,13 +749,8 @@ const Checkout = () => {
             {formatPrice(calculateTotal())}
           </div>
           <Paragraph className="text-gray-500 mt-4">
-            Mở ứng dụng{" "}
-            {selectedWallet === "momo"
-              ? "MoMo"
-              : selectedWallet === "zalopay"
-              ? "ZaloPay"
-              : "VNPay"}{" "}
-            trên điện thoại của bạn và quét mã QR này để thanh toán.
+            Mở ứng dụng {getSelectedPaymentMethod()?.provider || ""} trên điện
+            thoại của bạn và quét mã QR này để thanh toán.
           </Paragraph>
         </div>
       </Modal>
