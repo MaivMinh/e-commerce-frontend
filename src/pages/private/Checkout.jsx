@@ -317,7 +317,11 @@ const Checkout = () => {
                               handleAddressSelect(e.target.value)
                             }
                           >
-                            <Space direction="vertical" className="w-full">
+                            <Space
+                              direction="vertical"
+                              className="w-full"
+                              size={30}
+                            >
                               {addresses.map((address) => (
                                 <Radio.Button
                                   key={address.id}
@@ -329,18 +333,18 @@ const Checkout = () => {
                                       <div className="font-medium">
                                         {address.fullName}
                                       </div>
+                                      {address.isDefault && (
+                                        <p className="font-semibold">
+                                          Mặc định
+                                        </p>
+                                      )}
                                       <div className="text-gray-500">
                                         {address.phone}
                                       </div>
                                     </div>
-                                    <div className="text-gray-600 mt-1">
+                                    <div className="text-gray-600">
                                       {address.address}
                                     </div>
-                                    {address.isDefault && (
-                                      <Tag color="blue" className="mt-2">
-                                        Mặc định
-                                      </Tag>
-                                    )}
                                   </div>
                                 </Radio.Button>
                               ))}
