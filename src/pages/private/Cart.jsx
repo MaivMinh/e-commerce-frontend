@@ -69,8 +69,8 @@ const Cart = () => {
   useEffect(() => {
     const fetchPromotions = async () => {
       try {
-        const response = await apiClient.get("/api/promotions?status=active");
-        setPromotions(response.data.data || []);
+        const response = await apiClient.get("/api/promotions/all");
+        setPromotions(response.data.data|| []);
       } catch (error) {
         console.error("Failed to fetch promotions:", error);
       }
@@ -259,7 +259,10 @@ const Cart = () => {
             <Image
               src={record.productVariantDTO.cover}
               alt={record.productVariantDTO.name}
-              className="w-full h-full object-cover rounded"
+              className="w-full h-full object-contain rounded"
+              width={90}
+              height={90}
+              style={{ objectFit: "contain", borderRadius: "8px" }}
               preview={false}
             />
           </div>

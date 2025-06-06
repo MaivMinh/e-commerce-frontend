@@ -85,7 +85,7 @@ const Header = () => {
       <div className="w-full h-full mx-auto px-10">
         <nav className="flex flex-row justify-between items-center">
           <button onClick={() => navigate("/")} className="cursor-pointer">
-            <img src={logo} alt="e-commerce logo" width={60} />
+            <img src={logo} alt="e-commerce logo" width={80} />
           </button>
           <div className="flex flex-row justify-center items-center min-w-[600px] mx-auto gap-x-10">
             <AutoComplete

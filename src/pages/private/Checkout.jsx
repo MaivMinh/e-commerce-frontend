@@ -98,7 +98,7 @@ const Checkout = () => {
 
         /// fetch payment method.
         await apiClient
-          .get("/api/payment-methods")
+          .get("/api/payment-methods/all")
           .then((response) => {
             const methods = response.data.data;
             setPaymentMethods(methods);
