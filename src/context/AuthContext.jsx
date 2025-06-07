@@ -111,18 +111,35 @@ export const AuthContextProvider = ({ children }) => {
     }
   }
 
-  function handleLogout() {
-    localStorage.removeItem("access-token");
-    localStorage.removeItem("refresh-token");
-    localStorage.removeItem("profile");
-    setAuth((prev) => {
-      return {
-        ...prev,
-        isAuthenticated: false,
-        accountId: null,
-      };
-    });
-  }
+  const handleLogout = () => {
+    try {
+      localStorage.removeItem("access-token");
+      localStorage.removeItem("refresh-token");
+      localStorage.removeItem("profile");
+      setAuth((prev) => {
+        return {
+          ...prev,
+          isAuthenticated: false,
+          accountId: null,
+        };
+      });
+
+      setProfile((prev) => {
+        return {
+          ...prev,
+          id: null,
+          username: null,
+          email: null,
+          name: null,
+          role: null,
+          avatar: null,
+          addressDTOs: [],
+        };
+      });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
 
   return (
     <AuthContext.Provider

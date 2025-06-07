@@ -65,14 +65,6 @@ const Login = () => {
         "",
         4
       );
-      setTimeout(() => {
-        openNotificationWithIcon(
-          "success",
-          "Kích hoạt tài khoản",
-          "Email đã được gửi đến địa chỉ của bạn. Vui lòng kiểm tra email để kích hoạt tài khoản.",
-          0
-        );
-      }, 3500);
     }
   }, []);
 
@@ -81,7 +73,6 @@ const Login = () => {
     apiClient
       .post("/api/auth/login", values)
       .then((response) => {
-        console.log(response);
         const payload = response.data;
         const data = payload.data;
         const accessToken = data.accessToken;

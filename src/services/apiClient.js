@@ -62,7 +62,10 @@ apiClient.interceptors.request.use(
 );
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Do something with response data
+    return response;
+  },
   async (error) => {
     // Do something with response error
     if (error.response && error.response.status === 498) {

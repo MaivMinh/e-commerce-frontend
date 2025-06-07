@@ -41,6 +41,7 @@ const Header = () => {
     try {
       const accessToken = localStorage.getItem("access-token");
       await apiClient.post(`/api/auth/logout?token=${accessToken}`);
+      navigate("/login");
     } catch (error) {
       console.error("Logout failed:", error);
     } finally {
