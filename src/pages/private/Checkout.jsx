@@ -31,6 +31,10 @@ import {
   InfoCircleOutlined,
   CheckOutlined,
   SoundTwoTone,
+  ExclamationCircleFilled,
+  ExclamationCircleOutlined,
+  CloseCircleFilled,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
@@ -53,6 +57,9 @@ const Checkout = () => {
   const [selectedWallet, setSelectedWallet] = useState("momo");
   const [showQRModal, setShowQRModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [orderId, setOrderId] = useState(null);
+  const [showFailureModal, setShowFailureModal] = useState(false);
+  const [stockErrorMessage, setStockErrorMessage] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
@@ -232,6 +239,7 @@ const Checkout = () => {
       setShowQRModal(false);
       setOrderPlaced(true);
       setShowSuccessModal(true);
+      setOrderId(response.data.data.orderId || response.data.orderId || "N/A");
 
       notification.success({
         message: "Đặt hàng thành công",
@@ -239,20 +247,17 @@ const Checkout = () => {
       });
     } catch (error) {
       setPaymentProcessing(false);
-      console.error("Order creation failed:", error);
+      setShowQRModal(false);
+      console.log("Payment processing error:", error);
 
-      notification.error({
-        message: "Đặt hàng thất bại",
-        description:
-          error.response?.data?.message ||
-          "Có lỗi xảy ra khi xử lý đơn hàng. Vui lòng thử lại.",
-      });
+      if (error.response?.data?.data?.errorMsg?.includes("Not enough stock")) {
+        // Set stock-specific error message
+        setStockErrorMessage(
+          `Sản phẩm trong giỏ hàng của bạn hiện không đủ số lượng trong kho.`
+        );
+      }
+      setShowFailureModal(true);
     }
-  };
-
-  // Handle wallet selection
-  const handleWalletChange = (value) => {
-    setSelectedWallet(value);
   };
 
   // Get selected address
@@ -771,7 +776,7 @@ const Checkout = () => {
         <Result
           status="success"
           title="Đặt hàng thành công!"
-          subTitle={`Mã đơn hàng: ORDER123456. Cảm ơn bạn đã mua sắm tại Shop!`}
+          subTitle={`Mã đơn hàng: ${orderId}. Cảm ơn bạn đã mua sắm tại Shop!`}
           extra={[
             <Button
               type="primary"
@@ -784,6 +789,50 @@ const Checkout = () => {
             </Button>,
             <Button key="buy" onClick={() => navigate("/")} size="large">
               Tiếp tục mua sắm
+            </Button>,
+          ]}
+        />
+      </Modal>
+
+      {/* Failure Modal  */}
+      <Modal
+        open={showFailureModal}
+        footer={null}
+        closable={false}
+        centered
+        width={600}
+        className="failure-modal"
+      >
+        <Result
+          status="error"
+          title="Đặt hàng thất bại"
+          subTitle={
+            stockErrorMessage ||
+            "Có lỗi xảy ra khi xử lý đơn hàng. Vui lòng thử lại sau."
+          }
+          extra={[
+            <Button
+              type="primary"
+              key="retry"
+              onClick={() => {
+                setShowFailureModal(false);
+                setStockErrorMessage("");
+              }}
+              className="bg-red-600 hover:bg-red-700"
+              size="large"
+            >
+              Thử lại
+            </Button>,
+            <Button
+              key="cart"
+              onClick={() => {
+                navigate("/cart");
+                setShowFailureModal(false);
+                setStockErrorMessage("");
+              }}
+              size="large"
+            >
+              Quay lại giỏ hàng
             </Button>,
           ]}
         />
