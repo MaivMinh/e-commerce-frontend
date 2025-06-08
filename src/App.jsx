@@ -17,6 +17,7 @@ import Order from "./pages/private/Order";
 import Checkout from "./pages/private/Checkout";
 import Product from "./pages/private/Product";
 import { CartContextProvider } from "./context/CartContext";
+import Profile from "./pages/private/Profile";
 
 function App() {
   return (
@@ -63,7 +64,7 @@ function App() {
                 path="/profile"
                 element={
                   <PrivateRoute>
-                    <div>Profile Page</div>
+                    <Profile />
                   </PrivateRoute>
                 }
               />
@@ -78,9 +79,9 @@ function App() {
               <Route
                 path="/products"
                 element={
-                  <PublicRoute>
+                  <PrivateRoute>
                     <Product />
-                  </PublicRoute>
+                  </PrivateRoute>
                 }
               />
               <Route

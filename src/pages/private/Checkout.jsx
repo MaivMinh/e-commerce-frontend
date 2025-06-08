@@ -16,6 +16,7 @@ import {
   Modal,
   Result,
   Spin,
+  Checkbox,
 } from "antd";
 import {
   CreditCardOutlined,
@@ -23,18 +24,10 @@ import {
   WalletOutlined,
   DollarOutlined,
   EnvironmentOutlined,
-  UserOutlined,
-  PhoneOutlined,
   CheckCircleOutlined,
   ArrowLeftOutlined,
   LockOutlined,
   InfoCircleOutlined,
-  CheckOutlined,
-  SoundTwoTone,
-  ExclamationCircleFilled,
-  ExclamationCircleOutlined,
-  CloseCircleFilled,
-  CloseCircleOutlined,
 } from "@ant-design/icons";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
@@ -66,6 +59,10 @@ const Checkout = () => {
   const [appliedPromotion, setAppliedPromotion] = useState(null);
   const { profile, auth } = useContext(AuthContext);
   const [addresses, setAddresses] = useState([]);
+
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addressForm] = Form.useForm();
+  const [addingAddress, setAddingAddress] = useState(false);
 
   // Mock shipping fee
   const shippingFee = 30000;
@@ -105,9 +102,9 @@ const Checkout = () => {
 
         /// fetch payment method.
         await apiClient
-          .get("/api/payment-methods/all")
+          .get("/api/payment-methods?isActive=true")
           .then((response) => {
-            const methods = response.data.data;
+            const methods = response.data.data.methods;
             setPaymentMethods(methods);
 
             // Set default payment method if available
@@ -123,6 +120,60 @@ const Checkout = () => {
       }, 1000);
     }
   }, [auth, profile]);
+
+  const handleAddAddress = async (values) => {
+    setAddingAddress(true);
+    try {
+      const payload = {
+        userId: profile.id,
+        fullName: values.fullName,
+        phone: values.phone,
+        address: values.address,
+        isDefault: values.isDefault || false,
+      };
+
+      const response = await apiClient.post("/api/users/addresses", payload);
+
+      if (response.data) {
+        notification.success({
+          message: "Thêm địa chỉ thành công",
+          description:
+            "Địa chỉ mới đã được thêm vào danh sách địa chỉ của bạn.",
+        });
+
+        // Cập nhật danh sách địa chỉ
+        const newAddress = response.data.data;
+        const updatedAddresses = [...addresses];
+
+        // Nếu địa chỉ mới là mặc định, cập nhật các địa chỉ khác
+        if (newAddress.isDefault) {
+          updatedAddresses.forEach((addr) => {
+            addr.isDefault = false;
+          });
+        }
+
+        updatedAddresses.push(newAddress);
+        setAddresses(updatedAddresses);
+
+        // Chọn địa chỉ mới
+        setSelectedAddress(newAddress.id);
+
+        // Đóng modal và reset form
+        setShowAddressModal(false);
+        addressForm.resetFields();
+      }
+    } catch (error) {
+      console.error("Lỗi khi thêm địa chỉ:", error);
+      notification.error({
+        message: "Thêm địa chỉ thất bại",
+        description:
+          error.response?.data?.message ||
+          "Đã xảy ra lỗi khi thêm địa chỉ mới.",
+      });
+    } finally {
+      setAddingAddress(false);
+    }
+  };
 
   // Calculate subtotal
   const calculateSubtotal = () => {
@@ -358,7 +409,11 @@ const Checkout = () => {
                         </Form.Item>
 
                         <div className="text-right mt-4">
-                          <Button type="link" className="text-indigo-600">
+                          <Button
+                            type="link"
+                            className="text-indigo-600"
+                            onClick={() => setShowAddressModal(true)}
+                          >
                             + Thêm địa chỉ mới
                           </Button>
                         </div>
@@ -836,6 +891,76 @@ const Checkout = () => {
             </Button>,
           ]}
         />
+      </Modal>
+      <Modal
+        title="Thêm địa chỉ mới"
+        open={showAddressModal}
+        onCancel={() => setShowAddressModal(false)}
+        footer={null}
+        destroyOnClose={true}
+      >
+        <Form
+          form={addressForm}
+          layout="vertical"
+          onFinish={handleAddAddress}
+          initialValues={{ isDefault: false }}
+        >
+          <Form.Item
+            name="fullName"
+            label="Họ tên"
+            rules={[{ required: true, message: "Vui lòng nhập họ tên!" }]}
+          >
+            <Input placeholder="Nhập họ tên người nhận" />
+          </Form.Item>
+
+          <Form.Item
+            name="phone"
+            label="Số điện thoại"
+            rules={[
+              { required: true, message: "Vui lòng nhập số điện thoại!" },
+              {
+                pattern: /^[0-9]{10,11}$/,
+                message: "Số điện thoại không hợp lệ!",
+              },
+            ]}
+          >
+            <Input placeholder="Nhập số điện thoại" />
+          </Form.Item>
+
+          <Form.Item
+            name="address"
+            label="Địa chỉ"
+            rules={[{ required: true, message: "Vui lòng nhập địa chỉ!" }]}
+          >
+            <Input.TextArea
+              placeholder="Nhập địa chỉ chi tiết (số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố)"
+              rows={3}
+            />
+          </Form.Item>
+
+          <Form.Item name="isDefault" valuePropName="checked">
+            <Checkbox>Đặt làm địa chỉ mặc định</Checkbox>
+          </Form.Item>
+
+          <Form.Item className="mb-0">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowAddressModal(false)}
+                className="mr-2"
+              >
+                Hủy
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={addingAddress}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                Thêm địa chỉ
+              </Button>
+            </div>
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

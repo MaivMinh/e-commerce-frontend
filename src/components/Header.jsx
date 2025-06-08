@@ -4,7 +4,11 @@ import { AuthContext } from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/images/logo.png";
 import {
+  FileTextFilled,
   LoginOutlined,
+  LogoutOutlined,
+  OrderedListOutlined,
+  ProfileOutlined,
   SearchOutlined,
   ShoppingCartOutlined,
   UserOutlined,
@@ -16,6 +20,31 @@ const Header = () => {
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
   const [options, setOptions] = useState([]);
+
+  const userMenuItems = [
+    {
+      key: "profile",
+      icon: <ProfileOutlined />,
+      label: "Thông tin cá nhân",
+      onClick: () => navigate("/profile"),
+    },
+    {
+      key: "orders",
+      icon: <OrderedListOutlined />,
+      label: "Đơn hàng của tôi",
+      onClick: () => navigate("/orders"),
+    },
+    {
+      type: "divider",
+    },
+    {
+      key: "logout",
+      icon: <LogoutOutlined />,
+      label: "Đăng xuất",
+      onClick: logout,
+    },
+  ];
+
   const [arrow, setArrow] = useState("Show");
   const mergedArrow = useMemo(() => {
     if (arrow === "Hide") {
@@ -111,23 +140,25 @@ const Header = () => {
             {auth.isAuthenticated ? (
               <div className="flex w-full justify-between items-center gap-x-10">
                 <div className="flex flex-row justify-center items-center gap-x-4">
-                  <Tooltip
-                    placement="bottom"
-                    title={"Profile"}
-                    arrow={mergedArrow}
+                  <Dropdown
+                    menu={{ items: userMenuItems }}
+                    placement="bottomRight"
+                    trigger={["hover"]}
+                    overlayClassName="user-dropdown-menu"
                   >
                     <Button
                       icon={<UserOutlined />}
-                      onClick={() => navigate("/profile")}
                       shape="circle"
                       size="large"
+                      className="user-profile-button hover:shadow-md transition-all"
                       style={{
                         borderColor: "#4F46E5",
                         color: "#4F46E5",
                         fontSize: "22px",
                       }}
-                    ></Button>
-                  </Tooltip>
+                    />
+                  </Dropdown>
+
                   <Tooltip
                     placement="bottom"
                     title={"Giỏ hàng"}
@@ -143,20 +174,10 @@ const Header = () => {
                         color: "#fa8c16",
                         fontSize: "22px",
                       }}
-                    ></Button>
+                    />
                   </Tooltip>
                 </div>
-                <Button
-                  onClick={handleLogout}
-                  color="orange"
-                  variant="solid"
-                  style={{
-                    fontSize: "16px",
-                    fontWeight: "450",
-                  }}
-                >
-                  Đăng xuất
-                </Button>
+                {/* Remove the separate logout button since it's now in the dropdown */}
               </div>
             ) : (
               <Button
