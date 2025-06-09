@@ -191,39 +191,53 @@ const Product = () => {
   ]);
 
   useEffect(() => {
-  // Reset urlParamsProcessed khi URL thay đổi để có thể xử lý category mới
-  setUrlParamsProcessed(false);
-  
-  // Log để debug
-  console.log("URL đã thay đổi, reset urlParamsProcessed");
-}, [location.search]);
+    // Reset urlParamsProcessed khi URL thay đổi để có thể xử lý category mới
+    setUrlParamsProcessed(false);
+
+    // Log để debug
+    console.log("URL đã thay đổi, reset urlParamsProcessed");
+  }, [location.search]);
 
   useEffect(() => {
     // Chỉ xử lý khi categories đã được tải và chưa xử lý URL params
     if (categories.length > 0 && !urlParamsProcessed) {
       const categorySlug = queryParams.get("category");
+      const isBestseller = queryParams.get("isBestseller") === "true";
+      const isNew = queryParams.get("isNew") === "true";
+      const isFeatured = queryParams.get("isFeatured") === "true";
+
+      // Cập nhật các bộ lọc khác từ URL params
+      setOtherFilters({
+        isBestseller: isBestseller || false,
+        isNew: isNew || false,
+        isFeatured: isFeatured || false,
+      });
+      
 
       if (categorySlug) {
-        console.log("Tìm category với slug:", categorySlug);
-
         // Tìm category với slug tương ứng
         const category = categories.find((cat) => cat.slug === categorySlug);
 
         if (category) {
-          console.log(
-            "Đã tìm thấy category:",
-            category.name,
-            "với ID:",
-            category.id
-          );
+          
+          /// Tìm các danh mục con của category này
+          const childCategories = categories
+            .filter((cat) => cat.parentId === category.id)
+            .map((cat) => cat.id);
+          // Thêm tất cả danh mục con vào categoryFilters
 
-          // Thêm categoryId vào categoryFilters
           setCategoryFilters((prev) => {
-            // Tránh thêm trùng lặp
-            if (!prev.includes(category.id)) {
-              return [...prev, category.id];
+            /// Thêm cateogory con vào categoryFilters nếu chưa có
+            const newFilters = [...prev];
+            if (!newFilters.includes(category.id)) {
+              newFilters.push(category.id);
             }
-            return prev;
+            childCategories.forEach((childId) => {
+              if (!newFilters.includes(childId)) {
+                newFilters.push(childId);
+              }
+            });
+            return newFilters;
           });
         } else {
           console.log("Không tìm thấy category với slug:", categorySlug);

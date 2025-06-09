@@ -27,6 +27,7 @@ import {
 } from "@ant-design/icons";
 import apiClient from "../services/apiClient";
 import debounce from "lodash.debounce";
+import bestseller from "../assets/images/bestseller.png"
 
 const Header = () => {
   const { auth, logout } = useContext(AuthContext);
@@ -210,40 +211,79 @@ const Header = () => {
         <div className="">
           <div className="flex flex-row justify-between items-center">
             {/* Logo */}
-            <button onClick={() => navigate("/")} className="cursor-pointer">
-              <img src={logo} alt="e-commerce logo" width={80} />
-            </button>
-
-            {/* Search Bar */}
-            <div className="w-[600px] mx-auto">
-              <AutoComplete
-                className="w-full"
-                options={options}
-                onSelect={handleSelect}
-                onSearch={handleSearchChange}
-                value={searchValue}
-                notFoundContent={
-                  loading ? <Spin size="small" /> : "Không tìm thấy sản phẩm"
-                }
-                dropdownMatchSelectWidth={500}
-              >
-                <Input.Search
-                  placeholder="Tìm kiếm sản phẩm, thương hiệu..."
-                  variant="outlined"
-                  value={searchValue}
-                  onSearch={handleSearch}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  allowClear={true}
-                  size="large"
-                  loading={loading}
-                />
-              </AutoComplete>
+            <div className="flex-none">
+              <button onClick={() => navigate("/")} className="cursor-pointer">
+                <img src={logo} alt="e-commerce logo" width={80} />
+              </button>
             </div>
 
-            {/* User/Cart Icons */}
-            <div className="flex flex-row justify-end items-center">
+            {/* Navigation Menu */}
+            <div className="flex-1 flex justify-center">
+              <nav className="flex space-x-8">
+                <Link
+                  to="/products?isBestseller=true"
+                  className="text-gray-700 hover:text-indigo-600 font-medium text-base transition-colors"
+                >
+                  Bán chạy nhất
+                </Link>
+                <Link
+                  to="/products?isNew=true"
+                  className="text-gray-700 hover:text-indigo-600 font-medium text-base transition-colors"
+                >
+                  Mới
+                </Link>
+                <Link
+                  to="/products?isFeatured=true"
+                  className="text-gray-700 hover:text-indigo-600 font-medium text-base transition-colors"
+                >
+                  Nổi bật
+                </Link>
+                <Link
+                  to="/products?category=nam"
+                  className="text-gray-700 hover:text-indigo-600 font-medium text-base transition-colors"
+                >
+                  Nam
+                </Link>
+                <Link
+                  to="/products?category=nu"
+                  className="text-gray-700 hover:text-indigo-600 font-medium text-base transition-colors"
+                >
+                  Nữ
+                </Link>
+              </nav>
+            </div>
+
+            {/* Search Bar and User/Cart Icons */}
+            <div className="flex-none flex items-center space-x-4">
+              {/* Search Bar */}
+              <div className="w-[280px]">
+                <AutoComplete
+                  className="w-full"
+                  options={options}
+                  onSelect={handleSelect}
+                  onSearch={handleSearchChange}
+                  value={searchValue}
+                  notFoundContent={
+                    loading ? <Spin size="small" /> : "Không tìm thấy sản phẩm"
+                  }
+                  dropdownMatchSelectWidth={280}
+                >
+                  <Input.Search
+                    placeholder="Tìm kiếm sản phẩm..."
+                    variant="outlined"
+                    value={searchValue}
+                    onSearch={handleSearch}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    allowClear={true}
+                    size="middle"
+                    loading={loading}
+                  />
+                </AutoComplete>
+              </div>
+
+              {/* User/Cart Icons */}
               {auth.isAuthenticated ? (
-                <div className="flex items-center gap-x-4">
+                <div className="flex items-center gap-x-3">
                   <Dropdown
                     menu={{ items: userMenuItems }}
                     placement="bottomRight"
@@ -258,7 +298,7 @@ const Header = () => {
                       style={{
                         borderColor: "#4F46E5",
                         color: "#4F46E5",
-                        fontSize: "22px",
+                        fontSize: "20px",
                       }}
                     />
                   </Dropdown>
@@ -276,7 +316,7 @@ const Header = () => {
                       style={{
                         borderColor: "#fa8c16",
                         color: "#fa8c16",
-                        fontSize: "22px",
+                        fontSize: "20px",
                       }}
                     />
                   </Tooltip>
@@ -288,7 +328,6 @@ const Header = () => {
                   style={{
                     backgroundColor: "#4F46E5",
                     fontWeight: "bold",
-                    padding: "16px 12px",
                   }}
                   className="text-[#F5F5F5]"
                   icon={<LoginOutlined />}
