@@ -1,4 +1,15 @@
-import { AutoComplete, Button, Dropdown, Input, Space, Tooltip, Avatar, Spin } from "antd";
+import {
+  AutoComplete,
+  Button,
+  Dropdown,
+  Input,
+  Space,
+  Tooltip,
+  Avatar,
+  Spin,
+  Tag,
+  Divider,
+} from "antd";
 import { useContext, useMemo, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
@@ -11,6 +22,7 @@ import {
   ProfileOutlined,
   SearchOutlined,
   ShoppingCartOutlined,
+  TagOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import apiClient from "../services/apiClient";
@@ -22,6 +34,8 @@ const Header = () => {
   const [searchValue, setSearchValue] = useState("");
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   // Tạo debounced search function để tránh gọi API quá nhiều
   const debouncedSearch = useMemo(
@@ -36,25 +50,29 @@ const Header = () => {
         try {
           setLoading(true);
           // Gọi API tìm kiếm sản phẩm
-          const response = await apiClient.post(`/api/products/search?name=${searchText}&size=20`);
+          const response = await apiClient.post(
+            `/api/products/search?name=${searchText}&size=20`
+          );
 
           if (response.data && response.data.data) {
             const products = response.data.data.products;
-            
+
             // Format kết quả tìm kiếm với hình ảnh và giá
             setOptions(
               products.map((product) => ({
                 value: product.name,
                 label: (
                   <div className="flex items-center py-2">
-                    <Avatar 
-                      src={product.cover} 
-                      size={40} 
+                    <Avatar
+                      src={product.cover}
+                      size={40}
                       shape="square"
                       className="mr-3"
                     />
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-800">{product.name}</span>
+                      <span className="text-sm font-medium text-gray-800">
+                        {product.name}
+                      </span>
                       <span className="text-xs text-rose-600">
                         {new Intl.NumberFormat("vi-VN", {
                           style: "currency",
@@ -65,7 +83,7 @@ const Header = () => {
                   </div>
                 ),
                 key: product.id,
-                slug: product.slug
+                slug: product.slug,
               }))
             );
           }
@@ -81,9 +99,9 @@ const Header = () => {
                   <span>Tìm "{searchText}"</span>
                 </div>
               ),
-              key: 'search',
-              isSearchQuery: true
-            }
+              key: "search",
+              isSearchQuery: true,
+            },
           ]);
         } finally {
           setLoading(false);
@@ -124,6 +142,30 @@ const Header = () => {
     };
   }, [debouncedSearch]);
 
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const response = await apiClient.get("/api/categories?size=10");
+        if (response.data && response.data.data.categories) {
+          setCategories(response.data.data.categories);
+        }
+      } catch (error) {
+        console.error("Lỗi khi lấy danh sách danh mục:", error);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  const handleCategoryClick = (categorySlug, categoryName) => {
+    navigate(`/products?category=${categorySlug}`, {
+      state: { categoryName },
+    });
+  };
+
   const userMenuItems = [
     {
       key: "profile",
@@ -162,38 +204,46 @@ const Header = () => {
   }, [arrow]);
 
   return (
-    <header className="w-full min-h-24 flex flex-row items-center border-[1px] border-solid rounded-b-xl border-gray-200 bg-white shadow-md">
-      <div className="w-full h-full mx-auto px-10">
-        <nav className="flex flex-row justify-between items-center">
-          <button onClick={() => navigate("/")} className="cursor-pointer">
-            <img src={logo} alt="e-commerce logo" width={80} />
-          </button>
-          <div className="flex flex-row justify-center items-center min-w-[600px] mx-auto gap-x-10">
-            <AutoComplete
-              className="w-full"
-              options={options}
-              onSelect={handleSelect}
-              onSearch={handleSearchChange}
-              value={searchValue}
-              notFoundContent={loading ? <Spin size="small" /> : "Không tìm thấy sản phẩm"}
-              dropdownMatchSelectWidth={500}
-            >
-              <Input.Search
-                placeholder="Tìm kiếm sản phẩm, thương hiệu..."
-                variant="outlined"
+    <header className="w-full flex flex-col items-center border-[1px] border-solid rounded-b-xl border-gray-200 bg-white shadow-md">
+      <div className="w-full mx-auto px-10">
+        {/* Phần trên: Logo, Search, User/Cart icons */}
+        <div className="">
+          <div className="flex flex-row justify-between items-center">
+            {/* Logo */}
+            <button onClick={() => navigate("/")} className="cursor-pointer">
+              <img src={logo} alt="e-commerce logo" width={80} />
+            </button>
+
+            {/* Search Bar */}
+            <div className="w-[600px] mx-auto">
+              <AutoComplete
+                className="w-full"
+                options={options}
+                onSelect={handleSelect}
+                onSearch={handleSearchChange}
                 value={searchValue}
-                onSearch={handleSearch}
-                onChange={(e) => setSearchValue(e.target.value)}
-                allowClear={true}
-                size="large"
-                loading={loading}
-              />
-            </AutoComplete>
-          </div>
-          <div className="mr-4 flex flex-row justify-end items-center">
-            {auth.isAuthenticated ? (
-              <div className="flex w-full justify-between items-center gap-x-10">
-                <div className="flex flex-row justify-center items-center gap-x-4">
+                notFoundContent={
+                  loading ? <Spin size="small" /> : "Không tìm thấy sản phẩm"
+                }
+                dropdownMatchSelectWidth={500}
+              >
+                <Input.Search
+                  placeholder="Tìm kiếm sản phẩm, thương hiệu..."
+                  variant="outlined"
+                  value={searchValue}
+                  onSearch={handleSearch}
+                  onChange={(e) => setSearchValue(e.target.value)}
+                  allowClear={true}
+                  size="large"
+                  loading={loading}
+                />
+              </AutoComplete>
+            </div>
+
+            {/* User/Cart Icons */}
+            <div className="flex flex-row justify-end items-center">
+              {auth.isAuthenticated ? (
+                <div className="flex items-center gap-x-4">
                   <Dropdown
                     menu={{ items: userMenuItems }}
                     placement="bottomRight"
@@ -204,7 +254,7 @@ const Header = () => {
                       icon={<UserOutlined />}
                       shape="circle"
                       size="large"
-                      className="user-profile-button hover:shadow-md transition-all"
+                      className="hover:shadow-md transition-all"
                       style={{
                         borderColor: "#4F46E5",
                         color: "#4F46E5",
@@ -231,24 +281,49 @@ const Header = () => {
                     />
                   </Tooltip>
                 </div>
-              </div>
+              ) : (
+                <Button
+                  onClick={() => navigate("/login")}
+                  type="primary"
+                  style={{
+                    backgroundColor: "#4F46E5",
+                    fontWeight: "bold",
+                    padding: "16px 12px",
+                  }}
+                  className="text-[#F5F5F5]"
+                  icon={<LoginOutlined />}
+                >
+                  Đăng nhập
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Divider phân cách hai phần */}
+        <Divider className="my-0" type="horizontal" size="small" />
+
+        {/* Phần dưới: Danh sách Categories */}
+        <div className="">
+          <div className="flex flex-wrap gap-2 justify-center pt-2 pb-4 w-full">
+            {categoriesLoading ? (
+              <Spin size="small" />
             ) : (
-              <Button
-                onClick={() => navigate("/login")}
-                type="primary"
-                style={{
-                  backgroundColor: "#4F46E5",
-                  fontWeight: "bold",
-                  padding: "16px 12px",
-                }}
-                className="text-[#F5F5F5]"
-                icon={<LoginOutlined />}
-              >
-                Đăng nhập
-              </Button>
+              categories.map((category) => (
+                <Tag
+                  key={category.id}
+                  color="#4F46E5"
+                  icon={<TagOutlined />}
+                  className="cursor-pointer px-3 text-sm whitespace-nowrap"
+                  onClick={() =>
+                    handleCategoryClick(category.slug, category.name)
+                  }
+                >
+                  {category.name}
+                </Tag>
+              ))
             )}
           </div>
-        </nav>
+        </div>
       </div>
     </header>
   );

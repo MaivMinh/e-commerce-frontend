@@ -94,6 +94,7 @@ const Product = () => {
   const [categoryFilters, setCategoryFilters] = useState([]);
   const [showFilters, setShowFilters] = useState(true);
   const [categories, setCategories] = useState([]);
+  const [urlParamsProcessed, setUrlParamsProcessed] = useState(false);
 
   const [ratingFilter, setRatingFilter] = useState(null);
   const [otherFilters, setOtherFilters] = useState({
@@ -165,7 +166,6 @@ const Product = () => {
   };
 
   // Fetch products
-
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -189,6 +189,51 @@ const Product = () => {
     otherFilters.isBestseller,
     otherFilters.isFeatured,
   ]);
+
+  useEffect(() => {
+  // Reset urlParamsProcessed khi URL thay đổi để có thể xử lý category mới
+  setUrlParamsProcessed(false);
+  
+  // Log để debug
+  console.log("URL đã thay đổi, reset urlParamsProcessed");
+}, [location.search]);
+
+  useEffect(() => {
+    // Chỉ xử lý khi categories đã được tải và chưa xử lý URL params
+    if (categories.length > 0 && !urlParamsProcessed) {
+      const categorySlug = queryParams.get("category");
+
+      if (categorySlug) {
+        console.log("Tìm category với slug:", categorySlug);
+
+        // Tìm category với slug tương ứng
+        const category = categories.find((cat) => cat.slug === categorySlug);
+
+        if (category) {
+          console.log(
+            "Đã tìm thấy category:",
+            category.name,
+            "với ID:",
+            category.id
+          );
+
+          // Thêm categoryId vào categoryFilters
+          setCategoryFilters((prev) => {
+            // Tránh thêm trùng lặp
+            if (!prev.includes(category.id)) {
+              return [...prev, category.id];
+            }
+            return prev;
+          });
+        } else {
+          console.log("Không tìm thấy category với slug:", categorySlug);
+        }
+      }
+
+      // Đánh dấu đã xử lý URL params
+      setUrlParamsProcessed(true);
+    }
+  }, [categories, queryParams, urlParamsProcessed]);
 
   const handleRatingChange = (rating, checked) => {
     setRatingFilter(checked ? rating : 0);

@@ -29,7 +29,7 @@ const Home = () => {
       title: "Sản phẩm mới nhất",
       subtitle: "Khám phá xu hướng thời trang mới nhất",
       buttonText: "Mua sắm ngay",
-      link: "/products/newest",
+      link: "/products",
     },
     {
       id: 2,
@@ -38,7 +38,7 @@ const Home = () => {
       title: "Giảm giá lên đến 50%",
       subtitle: "Ưu đãi đặc biệt cho thành viên mới",
       buttonText: "Xem ngay",
-      link: "/sales",
+      link: "/products",
     },
     {
       id: 3,
@@ -47,7 +47,7 @@ const Home = () => {
       title: "Bộ sưu tập mùa hè",
       subtitle: "Phong cách sành điệu cho mùa mới",
       buttonText: "Khám phá",
-      link: "/collection/summer",
+      link: "/products",
     },
   ];
 
