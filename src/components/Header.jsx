@@ -1,5 +1,5 @@
-import { AutoComplete, Button, Dropdown, Input, Space, Tooltip } from "antd";
-import { useContext, useMemo, useState } from "react";
+import { AutoComplete, Button, Dropdown, Input, Space, Tooltip, Avatar, Spin } from "antd";
+import { useContext, useMemo, useState, useEffect } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
 import logo from "../assets/images/logo.png";
@@ -14,12 +14,115 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import apiClient from "../services/apiClient";
+import debounce from "lodash.debounce";
 
 const Header = () => {
   const { auth, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
   const [options, setOptions] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Tạo debounced search function để tránh gọi API quá nhiều
+  const debouncedSearch = useMemo(
+    () =>
+      debounce(async (searchText) => {
+        if (searchText.trim() === "") {
+          setOptions([]);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          setLoading(true);
+          // Gọi API tìm kiếm sản phẩm
+          const response = await apiClient.post(`/api/products/search?name=${searchText}&size=20`);
+
+          if (response.data && response.data.data) {
+            const products = response.data.data.products;
+            
+            // Format kết quả tìm kiếm với hình ảnh và giá
+            setOptions(
+              products.map((product) => ({
+                value: product.name,
+                label: (
+                  <div className="flex items-center py-2">
+                    <Avatar 
+                      src={product.cover} 
+                      size={40} 
+                      shape="square"
+                      className="mr-3"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-800">{product.name}</span>
+                      <span className="text-xs text-rose-600">
+                        {new Intl.NumberFormat("vi-VN", {
+                          style: "currency",
+                          currency: "VND",
+                        }).format(product.price)}
+                      </span>
+                    </div>
+                  </div>
+                ),
+                key: product.id,
+                slug: product.slug
+              }))
+            );
+          }
+        } catch (error) {
+          console.error("Lỗi khi tìm kiếm sản phẩm:", error);
+          // Nếu API lỗi, hiển thị gợi ý đơn giản
+          setOptions([
+            {
+              value: searchText,
+              label: (
+                <div className="flex items-center">
+                  <SearchOutlined className="mr-2 text-gray-400" />
+                  <span>Tìm "{searchText}"</span>
+                </div>
+              ),
+              key: 'search',
+              isSearchQuery: true
+            }
+          ]);
+        } finally {
+          setLoading(false);
+        }
+      }, 500),
+    []
+  );
+
+  // Xử lý thay đổi giá trị tìm kiếm
+  const handleSearchChange = (value) => {
+    setSearchValue(value);
+    debouncedSearch(value);
+  };
+
+  // Xử lý khi chọn một sản phẩm hoặc nhấn tìm kiếm
+  const handleSelect = (value, option) => {
+    if (option.isSearchQuery) {
+      // Nếu chọn "Tìm kiếm...", chuyển đến trang tìm kiếm
+      navigate(`/search?query=${encodeURIComponent(value)}`);
+    } else if (option.slug) {
+      // Nếu chọn một sản phẩm cụ thể, chuyển đến trang sản phẩm đó
+      navigate(`/products/${option.slug}`);
+    }
+  };
+
+  // Xử lý khi nhấn enter hoặc nút tìm kiếm
+  const handleSearch = (value) => {
+    if (value.trim() === "") {
+      return;
+    }
+    navigate(`/search?query=${encodeURIComponent(value)}`);
+  };
+
+  // Xóa kết quả tìm kiếm khi component unmount
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [debouncedSearch]);
 
   const userMenuItems = [
     {
@@ -58,58 +161,6 @@ const Header = () => {
     };
   }, [arrow]);
 
-  const handleSearch = (value) => {
-    if (value.trim() === "") {
-      return;
-    }
-    // Navigate to search results page with the search query
-    navigate(`/search?query=${encodeURIComponent(value)}`);
-  };
-
-  const handleLogout = async () => {
-    try {
-      const accessToken = localStorage.getItem("access-token");
-      await apiClient.post(`/api/auth/logout?token=${accessToken}`);
-      navigate("/login");
-    } catch (error) {
-      console.error("Logout failed:", error);
-    } finally {
-      logout();
-      navigate("/login");
-    }
-  };
-
-  const handleSearchChange = (value) => {
-    setSearchValue(value);
-
-    /// Điều này được thay thế bằng việc gọi API để lấy gợi ý tìm kiếm.
-    /// Ví dụ: apiClient.get(`/api/products/search?keyword=${value}`)
-
-    if (value.trim() === "") {
-      setOptions([]);
-      return;
-    } else {
-      const mockSuggestions = [
-        `${value} áo thun`,
-        `${value} quần jean`,
-        `${value} giày`,
-        `${value} túi xách`,
-      ];
-
-      setOptions(
-        mockSuggestions.map((item) => ({
-          value: item,
-          label: (
-            <div className="flex items-center">
-              <SearchOutlined className="mr-2 text-gray-400" />
-              <span>{item}</span>
-            </div>
-          ),
-        }))
-      );
-    }
-  };
-
   return (
     <header className="w-full min-h-24 flex flex-row items-center border-[1px] border-solid rounded-b-xl border-gray-200 bg-white shadow-md">
       <div className="w-full h-full mx-auto px-10">
@@ -121,18 +172,21 @@ const Header = () => {
             <AutoComplete
               className="w-full"
               options={options}
-              onSelect={handleSearch}
+              onSelect={handleSelect}
               onSearch={handleSearchChange}
               value={searchValue}
+              notFoundContent={loading ? <Spin size="small" /> : "Không tìm thấy sản phẩm"}
+              dropdownMatchSelectWidth={500}
             >
               <Input.Search
-                placeholder="Tìm kiếm quần áo, trang sức và nhiều hơn nữa..."
+                placeholder="Tìm kiếm sản phẩm, thương hiệu..."
                 variant="outlined"
                 value={searchValue}
                 onSearch={handleSearch}
                 onChange={(e) => setSearchValue(e.target.value)}
                 allowClear={true}
                 size="large"
+                loading={loading}
               />
             </AutoComplete>
           </div>
@@ -177,7 +231,6 @@ const Header = () => {
                     />
                   </Tooltip>
                 </div>
-                {/* Remove the separate logout button since it's now in the dropdown */}
               </div>
             ) : (
               <Button

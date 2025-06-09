@@ -83,7 +83,6 @@ const Product = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
 
-
   // State
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -95,22 +94,71 @@ const Product = () => {
   const [categoryFilters, setCategoryFilters] = useState([]);
   const [showFilters, setShowFilters] = useState(true);
   const [categories, setCategories] = useState([]);
-  
 
-
+  const [ratingFilter, setRatingFilter] = useState(null);
+  const [otherFilters, setOtherFilters] = useState({
+    isNew: false,
+    isBestseller: false,
+    isFeatured: false,
+  });
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      // Mock API call
-      const response = await apiClient.get("/api/products?size=10");
-      console.log(response.data.data.products);
-      setProducts(response.data.data.products);
-      setTotalProducts(response.data.data.totalElements);
+      // Xây dựng query parameters
+      const params = new URLSearchParams();
 
-      const categoriesResponse = await apiClient.get("/api/categories/all");
-      setCategories(categoriesResponse.data.data);
+      // Thêm page và size
+      params.append("page", currentPage);
+      params.append("size", pageSize);
+
+      // Xây dựng tham số sort
+      let sortParam = "";
+      switch (sortBy) {
+        case "newest":
+          sortParam = "createdAt:desc";
+          break;
+        case "bestselling":
+          sortParam = "soldItems:desc";
+          break;
+        case "price_asc":
+          sortParam = "price:asc";
+          break;
+        case "price_desc":
+          sortParam = "price:desc";
+          break;
+        case "rating":
+          sortParam = "rating:desc";
+          break;
+        default:
+          sortParam = "createdAt:desc";
+      }
+      params.append("sort", sortParam);
+
+      // Xây dựng filter payload
+      const filterPayload = {
+        categoryIds: categoryFilters,
+        minPrice: priceRange[0],
+        maxPrice: priceRange[1],
+        rating: ratingFilter > 0 ? ratingFilter : null,
+        isNew: otherFilters.isNew || null,
+        isBestseller: otherFilters.isBestseller || null,
+        isFeatured: otherFilters.isFeatured || null,
+      };
+
+      // Gọi API filter
+      const response = await apiClient.post(
+        `/api/products/filtered-products?${params.toString()}`,
+        filterPayload
+      );
+
+      if (response.data && response.data.data) {
+        setProducts(response.data.data.products || []);
+        setTotalProducts(response.data.data.totalElements || 0);
+      }
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error("Error fetching filtered products:", error);
+      setProducts([]);
+      setTotalProducts(0);
     } finally {
       setLoading(false);
     }
@@ -122,7 +170,6 @@ const Product = () => {
     const fetchCategories = async () => {
       try {
         const categoriesResponse = await apiClient.get("/api/categories/all");
-        // Lưu trữ danh mục dạng phẳng để dễ xử lý với component đệ quy
         setCategories(categoriesResponse.data.data);
       } catch (error) {
         console.error("Error fetching categories:", error);
@@ -131,7 +178,41 @@ const Product = () => {
 
     fetchCategories();
     fetchProducts();
-  }, [currentPage, pageSize, sortBy, priceRange, categoryFilters]);
+  }, [
+    currentPage,
+    pageSize,
+    sortBy,
+    priceRange,
+    categoryFilters,
+    ratingFilter,
+    otherFilters.isNew,
+    otherFilters.isBestseller,
+    otherFilters.isFeatured,
+  ]);
+
+  const handleRatingChange = (rating, checked) => {
+    setRatingFilter(checked ? rating : 0);
+    setCurrentPage(1);
+  };
+
+  const handleOtherFilterChange = (filterType, checked) => {
+    setOtherFilters((prev) => ({
+      ...prev,
+      [filterType]: checked,
+    }));
+    setCurrentPage(1);
+  };
+
+  const appliedFiltersCount = () => {
+    let count = 0;
+    if (categoryFilters.length > 0) count++;
+    if (priceRange[0] > 0 || priceRange[1] < 5000000) count++;
+    if (ratingFilter > 0) count++;
+    if (otherFilters.isNew) count++;
+    if (otherFilters.isBestseller) count++;
+    if (otherFilters.isFeatured) count++;
+    return count;
+  };
 
   // Format price
   const formatPrice = (price) => {
@@ -168,48 +249,66 @@ const Product = () => {
     const newCategories = [...categoryFilters];
 
     if (checked) {
-      newCategories.push(category);
+      /// Kiểm tra xem catogory này có phải là danh mục cha hay không.
+      const isParent = categories.some(
+        (cat) => cat.id === category && cat.parentId === null
+      );
+
+      if (isParent) {
+        // Nếu là danh mục cha, thêm tất cả danh mục con vào
+        const childCategories = categories
+          .filter((cat) => cat.parentId === category)
+          .map((cat) => cat.id);
+        childCategories.forEach((childId) => {
+          if (!newCategories.includes(childId)) {
+            newCategories.push(childId);
+          }
+          if (!newCategories.includes(category)) {
+            newCategories.push(category);
+          }
+        });
+      } else {
+        // Nếu là danh mục con, chỉ thêm danh mục đó
+        if (!newCategories.includes(category)) {
+          newCategories.push(category);
+        }
+      }
     } else {
+      /// Kiểm tra xem category có phải là danh mục cha hay không.
+      const isParent = categories.some(
+        (cat) => cat.id === category && cat.parentId === null
+      );
+      if (isParent) {
+        // Nếu là danh mục cha, xóa tất cả danh mục con khỏi bộ lọc
+        const childCategories = categories
+          .filter((cat) => cat.parentId === category)
+          .map((cat) => cat.id);
+        childCategories.forEach((childId) => {
+          const index = newCategories.indexOf(childId);
+          if (index > -1) {
+            newCategories.splice(index, 1);
+          }
+        });
+      }
       const index = newCategories.indexOf(category);
       if (index > -1) {
         newCategories.splice(index, 1);
       }
     }
-
     setCategoryFilters(newCategories);
     setCurrentPage(1);
   };
 
-  const organizeCategories = (categoriesData) => {
-    const parentCategories = categoriesData.filter(
-      (category) => category.parentId === null
-    );
-
-    return parentCategories.map((parent) => {
-      const children = categoriesData.filter(
-        (child) => child.parentId === parent.id
-      );
-      return {
-        ...parent,
-        subcategories: children,
-      };
-    });
-  };
-
-
-  // Clear all filters
   const clearAllFilters = () => {
     setCategoryFilters([]);
     setPriceRange([0, 5000000]);
+    setRatingFilter(0);
+    setOtherFilters({
+      isNew: false,
+      isBestseller: false,
+      isFeatured: false,
+    });
     setCurrentPage(1);
-  };
-
-  // Calculate applied filters count
-  const appliedFiltersCount = () => {
-    let count = 0;
-    if (categoryFilters.length > 0) count++;
-    if (priceRange[0] > 0 || priceRange[1] < 5000000) count++;
-    return count;
   };
 
   return (
@@ -329,7 +428,13 @@ const Product = () => {
                 >
                   {[5, 4, 3, 2, 1].map((rating) => (
                     <div key={rating} className="flex items-center mb-2">
-                      <Checkbox className="mr-2" />
+                      <Checkbox
+                        className="mr-2"
+                        checked={ratingFilter === rating}
+                        onChange={(e) =>
+                          handleRatingChange(rating, e.target.checked)
+                        }
+                      />
                       <Rate
                         disabled
                         defaultValue={rating}
@@ -359,24 +464,39 @@ const Product = () => {
                   key="other"
                 >
                   <div className="space-y-2">
-                    <Checkbox>Đang giảm giá</Checkbox>
-                    <div className="ml-6 mt-2">
-                      <Checkbox>Giảm giá ít nhất 10%</Checkbox>
-                    </div>
-                    <div className="ml-6 mt-2">
-                      <Checkbox>Giảm giá ít nhất 20%</Checkbox>
-                    </div>
-                    <div className="ml-6 mt-2">
-                      <Checkbox>Giảm giá ít nhất 30%</Checkbox>
-                    </div>
+                    <Checkbox
+                      checked={otherFilters.isNew}
+                      onChange={(e) =>
+                        handleOtherFilterChange("isNew", e.target.checked)
+                      }
+                    >
+                      Sản phẩm mới
+                    </Checkbox>
                   </div>
 
                   <div className="mt-3">
-                    <Checkbox>Sản phẩm mới</Checkbox>
+                    <Checkbox
+                      checked={otherFilters.isBestseller}
+                      onChange={(e) =>
+                        handleOtherFilterChange(
+                          "isBestseller",
+                          e.target.checked
+                        )
+                      }
+                    >
+                      Bán chạy nhất
+                    </Checkbox>
                   </div>
 
                   <div className="mt-3">
-                    <Checkbox>Bán chạy nhất</Checkbox>
+                    <Checkbox
+                      checked={otherFilters.isFeatured}
+                      onChange={(e) =>
+                        handleOtherFilterChange("isFeatured", e.target.checked)
+                      }
+                    >
+                      Sản phẩm nổi bật
+                    </Checkbox>
                   </div>
                 </Panel>
               </Collapse>
@@ -453,6 +573,48 @@ const Product = () => {
                   >
                     Giá: {formatPrice(priceRange[0])} -{" "}
                     {formatPrice(priceRange[1])}
+                  </Tag>
+                )}
+
+                {ratingFilter > 0 && (
+                  <Tag
+                    closable
+                    onClose={() => setRatingFilter(0)}
+                    className="py-1 px-3 text-sm bg-indigo-50 text-indigo-800 border-indigo-200"
+                  >
+                    Đánh giá: từ {ratingFilter} sao
+                  </Tag>
+                )}
+
+                {otherFilters.isNew && (
+                  <Tag
+                    closable
+                    onClose={() => handleOtherFilterChange("isNew", false)}
+                    className="py-1 px-3 text-sm bg-indigo-50 text-indigo-800 border-indigo-200"
+                  >
+                    Sản phẩm mới
+                  </Tag>
+                )}
+
+                {otherFilters.isBestseller && (
+                  <Tag
+                    closable
+                    onClose={() =>
+                      handleOtherFilterChange("isBestseller", false)
+                    }
+                    className="py-1 px-3 text-sm bg-indigo-50 text-indigo-800 border-indigo-200"
+                  >
+                    Bán chạy nhất
+                  </Tag>
+                )}
+
+                {otherFilters.isFeatured && (
+                  <Tag
+                    closable
+                    onClose={() => handleOtherFilterChange("isFeatured", false)}
+                    className="py-1 px-3 text-sm bg-indigo-50 text-indigo-800 border-indigo-200"
+                  >
+                    Sản phẩm nổi bật
                   </Tag>
                 )}
               </div>
@@ -644,7 +806,7 @@ const Product = () => {
                     </div>
 
                     {/* Stock Indicator/Rating */}
-                    <div className="flex items-center justify-between mt-1">
+                    <div className="flex flex-col items-start justify-start mt-1">
                       {product.productVariants &&
                       product.productVariants.length > 0 ? (
                         <Text className="text-xs text-gray-500">
@@ -660,7 +822,7 @@ const Product = () => {
                       <div className="flex items-center">
                         <Rate
                           disabled
-                          defaultValue={4.5}
+                          defaultValue={product.rating || 5.0}
                           allowHalf
                           className="text-xs"
                         />

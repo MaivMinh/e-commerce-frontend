@@ -7,7 +7,6 @@ import {
 } from "@ant-design/icons";
 import apiClient from "../../services/apiClient.js";
 import { Link, useNavigate } from "react-router-dom";
-import { AuthContext } from "../../context/AuthContext.jsx";
 
 const { Title, Text } = Typography;
 const { Meta } = Card;
@@ -18,7 +17,6 @@ const Home = () => {
   const [products, setProducts] = useState([]);
   const [totalProducts, setTotalProducts] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [sort, setSort] = useState("");
   const navigate = useNavigate();
   const pageSize = 8;
 
@@ -58,7 +56,7 @@ const Home = () => {
       setLoading(true);
       try {
         const response = await apiClient.get(
-          `/api/products?page=${currentPage}&size=${pageSize}&sort=${sort}`
+          `/api/products/newest-products?page=${currentPage}&size=${pageSize}`
         );
         setProducts(response.data.data.products);
         setTotalProducts(response.data.data.totalElements);
@@ -70,7 +68,7 @@ const Home = () => {
     };
 
     fetchProducts();
-  }, [currentPage, pageSize, sort]);
+  }, [currentPage, pageSize]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -133,8 +131,7 @@ const Home = () => {
             Sản phẩm mới nhất
           </Title>
           <Link
-            type="link"
-            href="/products"
+            to={"/products"}
             className="text-indigo-600 hover:text-purple-900 font-semibold text-lg"
           >
             Xem tất cả
