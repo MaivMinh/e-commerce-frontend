@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useContext } from "react";
-import { Carousel, Card, Button, Pagination, Spin, Typography } from "antd";
+import {
+  Carousel,
+  Card,
+  Button,
+  Pagination,
+  Spin,
+  Typography,
+  Skeleton,
+} from "antd";
 import {
   ShoppingCartOutlined,
   EyeOutlined,
@@ -20,7 +28,13 @@ const Home = () => {
   const navigate = useNavigate();
   const pageSize = 8;
 
-  // Simulated carousel images - replace with your actual images
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [totalCategories, setTotalCategories] = useState(0);
+  const [currentCategoryPage, setCurrentCategoryPage] = useState(1);
+  const categoryPageSize = 16; // 8 categories mỗi trang
+  const [changingCategoryPage, setChangingCategoryPage] = useState(false);
+
   const carouselImages = [
     {
       id: 1,
@@ -69,6 +83,64 @@ const Home = () => {
 
     fetchProducts();
   }, [currentPage, pageSize]);
+
+  // Fetch categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setCategoriesLoading(true);
+      try {
+        const response = await apiClient.get(
+          `/api/categories?page=${currentCategoryPage}&size=${categoryPageSize}`
+        );
+
+        setCategories(response.data.data.categories);
+        setTotalCategories(response.data.data.totalElements || 0);
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
+      } finally {
+        setTimeout(() => {
+          setCategoriesLoading(false);
+        }, 1000);
+      }
+    };
+
+    fetchCategories();
+  }, [currentCategoryPage]);
+
+  // Thêm useEffect để reset changingCategoryPage khi dữ liệu categories được cập nhật
+  useEffect(() => {
+    if (!categoriesLoading && changingCategoryPage) {
+      setChangingCategoryPage(false);
+    }
+  }, [categories, categoriesLoading]);
+
+  const skeletonArray = Array(categoryPageSize).fill(null);
+  const CategorySkeletonCard = () => (
+    <div className="cursor-not-allowed">
+      <Card
+        cover={<Skeleton.Image className="h-32 w-full" active={true} />}
+        bodyStyle={{ padding: "12px", textAlign: "center" }}
+        className="border border-gray-100"
+      >
+        <Skeleton active paragraph={{ rows: 1 }} title={false} />
+      </Card>
+    </div>
+  );
+
+  // Handler cho phân trang categories
+  const handleCategoryPageChange = (page) => {
+    // Đánh dấu bắt đầu chuyển trang và hiển thị skeleton
+    setChangingCategoryPage(true);
+    setCurrentCategoryPage(page);
+    window.scrollTo({ top: 550, behavior: "smooth" });
+  };
+
+  // Handler khi click vào category
+  const handleCategoryClick = (categorySlug, categoryName) => {
+    navigate(`/products?category=${categorySlug}`, {
+      state: { categoryName },
+    });
+  };
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -123,6 +195,137 @@ const Home = () => {
           </div>
         ))}
       </Carousel>
+
+      {/* Hiển thị danh sách các category có phân trang */}
+      {/* Hiển thị danh sách các category có phân trang */}
+      {categoriesLoading ? (
+        <div className="flex justify-center py-10 min-h-[400px]">
+          <Spin size="large" />
+        </div>
+      ) : (
+        <div className="container mx-auto px-4 py-12 min-h-[400px]">
+          <div className="flex justify-between items-center mb-8">
+            <Title level={2} className="m-0">
+              Danh mục sản phẩm
+            </Title>
+            <Link
+              to={"/products"}
+              className="text-indigo-600 hover:text-purple-900 font-semibold text-lg"
+            >
+              Xem tất cả
+            </Link>
+          </div>
+
+          <div className="space-y-6">
+            {/* Hàng 1 */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              {changingCategoryPage
+                ? skeletonArray
+                    .slice(0, 8)
+                    .map((_, index) => (
+                      <CategorySkeletonCard key={`skeleton-1-${index}`} />
+                    ))
+                : categories
+                    .slice(0, Math.ceil(categories.length / 2))
+                    .map((category) => (
+                      <div
+                        key={category.id}
+                        className="cursor-pointer hover:shadow-lg transition-all duration-300"
+                        onClick={() =>
+                          handleCategoryClick(category.slug, category.name)
+                        }
+                      >
+                        <Card
+                          hoverable
+                          cover={
+                            <div className="overflow-hidden h-32">
+                              <img
+                                alt={category.name}
+                                src={
+                                  category.image ||
+                                  `https://source.unsplash.com/300x300/?fashion,${category.name}&sig=${category.id}`
+                                }
+                                className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
+                              />
+                            </div>
+                          }
+                          bodyStyle={{ padding: "12px", textAlign: "center" }}
+                          className="border border-gray-100"
+                        >
+                          <Text
+                            strong
+                            className="text-sm text-gray-800 line-clamp-2 h-10"
+                          >
+                            {category.name}
+                          </Text>
+                        </Card>
+                      </div>
+                    ))}
+            </div>
+
+            {/* Hàng 2 */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+              {changingCategoryPage
+                ? skeletonArray
+                    .slice(0, 8)
+                    .map((_, index) => (
+                      <CategorySkeletonCard key={`skeleton-2-${index}`} />
+                    ))
+                : categories
+                    .slice(Math.ceil(categories.length / 2))
+                    .map((category) => (
+                      <div
+                        key={category.id}
+                        className="cursor-pointer hover:shadow-lg transition-all duration-300"
+                        onClick={() =>
+                          handleCategoryClick(category.slug, category.name)
+                        }
+                      >
+                        <Card
+                          hoverable
+                          cover={
+                            <div className="overflow-hidden h-32">
+                              <img
+                                alt={category.name}
+                                src={
+                                  category.image ||
+                                  `https://source.unsplash.com/300x300/?fashion,${category.name}&sig=${category.id}`
+                                }
+                                className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
+                                onError={(e) => {
+                                  e.target.src = `https://source.unsplash.com/300x300/?fashion&sig=${category.id}`;
+                                }}
+                              />
+                            </div>
+                          }
+                          bodyStyle={{ padding: "12px", textAlign: "center" }}
+                          className="border border-gray-100"
+                        >
+                          <Text
+                            strong
+                            className="text-sm text-gray-800 line-clamp-2 h-10"
+                          >
+                            {category.name}
+                          </Text>
+                        </Card>
+                      </div>
+                    ))}
+            </div>
+          </div>
+
+          {totalCategories > categoryPageSize && (
+            <div className="flex justify-center mt-8">
+              <Pagination
+                current={currentCategoryPage}
+                total={totalCategories}
+                pageSize={categoryPageSize}
+                onChange={handleCategoryPageChange}
+                showSizeChanger={false}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Newest Products Section */}
       <div className="container mx-auto px-4 py-12">
