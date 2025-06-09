@@ -67,7 +67,7 @@ const Order = () => {
       setCurrentPage(data.page || 1);
       setError(null);
     } catch (err) {
-      setError(err.message || "Đã xảy ra lỗi khi tải danh sách đơn hàng");
+      setError("Đã xảy ra lỗi khi tải danh sách đơn hàng");
       setOrders([]);
     } finally {
       setLoading(false);
