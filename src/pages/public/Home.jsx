@@ -243,7 +243,7 @@ const Home = () => {
                                 alt={category.name}
                                 src={
                                   category.image ||
-                                  `https://source.unsplash.com/300x300/?fashion,${category.name}&sig=${category.id}`
+                                  ``
                                 }
                                 className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
                               />
@@ -289,11 +289,11 @@ const Home = () => {
                                 alt={category.name}
                                 src={
                                   category.image ||
-                                  `https://source.unsplash.com/300x300/?fashion,${category.name}&sig=${category.id}`
+                                  ``
                                 }
                                 className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
                                 onError={(e) => {
-                                  e.target.src = `https://source.unsplash.com/300x300/?fashion&sig=${category.id}`;
+                                  e.target.src = ``;
                                 }}
                               />
                             </div>
