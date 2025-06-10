@@ -2,7 +2,7 @@ import axios from "axios";
 
 /// Cấu hình chung.
 const API_BASE_URL = "http://localhost:8080/";
-const PROD_API_BASE_URL = "http://www.moviereservation.software/";
+const PROD_API_BASE_URL = "https://www.moviereservation.software/";
 
 /// Tạo instance tập trung.
 const apiClient = axios.create({
