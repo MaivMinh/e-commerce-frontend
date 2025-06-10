@@ -27,7 +27,6 @@ import {
 } from "@ant-design/icons";
 import apiClient from "../services/apiClient";
 import debounce from "lodash.debounce";
-import bestseller from "../assets/images/bestseller.png"
 
 const Header = () => {
   const { auth, logout } = useContext(AuthContext);

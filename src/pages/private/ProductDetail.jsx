@@ -50,10 +50,12 @@ import {
   TrophyOutlined,
   CheckCircleOutlined,
   CheckCircleFilled,
+  UploadOutlined,
 } from "@ant-design/icons";
 import apiClient from "../../services/apiClient";
 import { AuthContext } from "../../context/AuthContext";
-import { color } from "framer-motion";
+import { Modal, Upload } from "antd";
+import { colgroup } from "framer-motion/client";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -61,7 +63,7 @@ const ProductDetail = () => {
   const params = useParams();
   const slug = params.slug;
   const navigate = useNavigate();
-  const {auth} = useContext(AuthContext);
+  const { auth } = useContext(AuthContext);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -89,78 +91,91 @@ const ProductDetail = () => {
   const [api, contextHolder] = notification.useNotification();
 
   const [isAddToCart, setIsAddToCart] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [reviewImages, setReviewImages] = useState([]);
+  const [reviewForm] = Form.useForm();
 
-  ///Hàm fetch review giả lập
+  const fetchReviews = async () => {
+    if (!product?.id) return;
+    try {
+      const res = await apiClient.get(`/api/reviews/${product.id}`);
+      console.log("Reviews data:", res.data);
+      // Cập nhật đúng cấu trúc dữ liệu
+      setReviews(res.data.data.reviews);
+      // Cập nhật stats nếu backend trả về
+      if (res.data.data.totalElements) {
+        setReviewStats((prev) => ({
+          ...prev,
+          total: res.data.data.totalElements,
+        }));
+      }
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+      setReviews([]);
+    }
+  };
+
+  // Thêm hàm để hiển thị tên người dùng ngắn gọn hơn
+  const formatAccountId = (accountId) => {
+    if (!accountId) return "Khách hàng";
+    // Nếu là UUID, lấy 8 ký tự đầu
+    if (accountId.includes("-")) {
+      return `Khách hàng #${accountId.split("-")[0]}`;
+    }
+    // Nếu không, lấy 6 ký tự đầu
+    return accountId.length > 8
+      ? `Khách hàng #${accountId.substring(0, 6)}...`
+      : accountId;
+  };
+
+  // Like review
+  const handleLikeReview = async (reviewId) => {
+    try {
+      await apiClient.post(`/api/reviews/${reviewId}/like`);
+      fetchReviews();
+    } catch (err) {
+      openErrorNotification("Bạn cần đăng nhập để thích đánh giá.");
+    }
+  };
+
+  // Submit review
+  const handleSubmitReview = async (values) => {
+    setIsSubmittingReview(true);
+    try {
+      const data = {
+        accountId: auth.accountId,
+        productId: product.id,
+        rating: values.rating,
+        content: values.content,
+        reviewImages: reviewImages, // Array of URLs
+      };
+      await apiClient.post("/api/reviews", data);
+      openSuccessNofitication(
+        "Đánh giá thành công",
+        "Cảm ơn bạn đã đánh giá sản phẩm!"
+      );
+      setIsReviewModalOpen(false);
+      reviewForm.resetFields();
+      setReviewImages([]);
+      fetchReviews();
+    } catch (err) {
+      setIsReviewModalOpen(false);
+      if (err.response && err.response.status === 403) {
+        openErrorNotification("Bạn cần mua sản phẩm này để đánh giá.");
+      } else {
+        openErrorNotification("Có lỗi xảy ra khi gửi đánh giá.");
+      }
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   useEffect(() => {
-    // Trong thực tế, gọi API ở đây: apiClient.get(`/api/products/${productId}/reviews?page=${reviewPage}&filter=${reviewFilter}`)
-
-    // Dữ liệu mẫu
-    const mockReviews = [
-      {
-        id: 1,
-        author: "Nguyễn Văn A",
-        avatar: "https://randomuser.me/api/portraits/men/32.jpg",
-        content:
-          "Sản phẩm rất tốt, vải đẹp và thoáng mát. Tôi rất hài lòng với chất lượng và sẽ mua thêm các sản phẩm khác.",
-        rating: 5,
-        date: "2025-02-15T08:24:00",
-        likes: 12,
-        images: [
-          "https://zos.alipayobjects.com/rmsportal/jkjgkEfvpUPVyRjUImniVslZfWPnJuuZ.png",
-        ],
-      },
-      {
-        id: 2,
-        author: "Trần Thị B",
-        avatar: "https://randomuser.me/api/portraits/women/44.jpg",
-        content:
-          "Size hơi nhỏ so với mô tả, nhưng chất lượng khá ổn. Màu sắc đúng như hình.",
-        rating: 4,
-        date: "2025-02-10T14:32:00",
-        likes: 5,
-        images: [],
-      },
-      {
-        id: 3,
-        author: "Lê Văn C",
-        avatar: "https://randomuser.me/api/portraits/men/67.jpg",
-        content:
-          "Giao hàng nhanh, đóng gói cẩn thận. Tuy nhiên áo hơi nhăn, cần ủi trước khi mặc.",
-        rating: 4,
-        date: "2025-01-28T19:15:00",
-        likes: 2,
-        images: [
-          "https://zos.alipayobjects.com/rmsportal/jkjgkEfvpUPVyRjUImniVslZfWPnJuuZ.png",
-          "https://zos.alipayobjects.com/rmsportal/jkjgkEfvpUPVyRjUImniVslZfWPnJuuZ.png",
-        ],
-      },
-      {
-        id: 4,
-        author: "Phạm Thị D",
-        avatar: "https://randomuser.me/api/portraits/women/25.jpg",
-        content:
-          "Tôi rất thất vọng với sản phẩm này. Màu sắc không đúng như mô tả và size thì quá nhỏ so với bảng size đã cung cấp.",
-        rating: 2,
-        date: "2025-01-15T09:42:00",
-        likes: 8,
-        images: [],
-      },
-      {
-        id: 5,
-        author: "Hoàng Văn E",
-        avatar: "https://randomuser.me/api/portraits/men/22.jpg",
-        content: "Áo đẹp, form chuẩn, đường may tỉ mỉ. Sẽ ủng hộ shop dài dài.",
-        rating: 5,
-        date: "2025-01-05T16:30:00",
-        likes: 15,
-        images: [
-          "https://zos.alipayobjects.com/rmsportal/jkjgkEfvpUPVyRjUImniVslZfWPnJuuZ.png",
-        ],
-      },
-    ];
-
-    setReviews(mockReviews);
-  }, [reviewPage, reviewFilter, slug]);
+    if (product?.id) {
+      fetchReviews();
+    }
+  }, [product?.id, reviewPage, reviewFilter]);
 
   // Format thời gian
   const formatReviewDate = (dateString) => {
@@ -220,8 +235,6 @@ const ProductDetail = () => {
       description: <span className="font-semibold">{message}</span>,
       icon: <IssuesCloseOutlined style={{ color: "red" }} />,
       placement: "topRight",
-      pauseOnHover: true,
-      showProgress: true,
       duration: 3,
     });
   };
@@ -349,7 +362,10 @@ const ProductDetail = () => {
         },
         quantity: quantity,
       };
-      const response = await apiClient.post(`/api/carts/${auth.accountId}/items`, data);
+      const response = await apiClient.post(
+        `/api/carts/${auth.accountId}/items`,
+        data
+      );
       openSuccessNofitication(
         "Đã thêm vào giỏ hàng",
         `Đã thêm ${product.name} (${selectedSize}, ${selectedColor}) x${quantity} vào giỏ hàng.`
@@ -756,6 +772,7 @@ const ProductDetail = () => {
                   type="primary"
                   icon={<CommentOutlined />}
                   className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  onClick={() => setIsReviewModalOpen(true)}
                 >
                   Viết đánh giá
                 </Button>
@@ -765,8 +782,9 @@ const ProductDetail = () => {
             {/* Danh sách đánh giá */}
             <div className="col-span-2">
               <div className="flex justify-between items-center mb-4">
-                <Title level={5} className="m-0">
-                  {reviewStats.total} đánh giá
+                <Title level={5} className="m-0 flex items-center">
+                  <span className="text-indigo-600 mr-2">{reviews.length}</span>
+                  đánh giá
                 </Title>
                 <Dropdown
                   overlay={
@@ -785,7 +803,10 @@ const ProductDetail = () => {
                   }
                   trigger={["click"]}
                 >
-                  <Button icon={<FilterOutlined />}>
+                  <Button
+                    icon={<FilterOutlined />}
+                    className="flex items-center"
+                  >
                     Lọc đánh giá <span className="ml-1">▼</span>
                   </Button>
                 </Dropdown>
@@ -799,47 +820,65 @@ const ProductDetail = () => {
                   split
                   renderItem={(item) => (
                     <List.Item
-                      className="py-4 border-b border-gray-100"
+                      className="py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200"
                       actions={[
-                        <span className="text-gray-500 flex items-center">
-                          <LikeOutlined className="mr-1" /> {item.likes}
-                        </span>,
+                        <Button
+                          type="text"
+                          icon={
+                            <LikeOutlined
+                              className={item.likes > 0 ? "text-blue-500" : ""}
+                            />
+                          }
+                          onClick={() => handleLikeReview(item.id)}
+                          className="flex items-center hover:text-blue-500 transition-colors"
+                        >
+                          <span
+                            className={
+                              item.likes > 0
+                                ? "text-blue-500 font-medium ml-1"
+                                : "ml-1"
+                            }
+                          >
+                            {item.likes}
+                          </span>
+                        </Button>,
                       ]}
                     >
                       <div className="w-full">
                         <div className="flex items-start">
                           <Avatar
-                            src={item.avatar}
-                            size={48}
                             icon={<UserOutlined />}
+                            size={48}
+                            className="bg-indigo-500"
                           />
                           <div className="ml-4 flex-grow">
                             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
-                              <Title level={5} className="m-0">
-                                {item.author}
+                              <Title level={5} className="m-0 text-indigo-700">
+                                {formatAccountId(item.accountId)}
                               </Title>
                               <div className="flex items-center mt-1 sm:mt-0">
                                 {renderStars(item.rating)}
                               </div>
                             </div>
                             <div className="text-gray-500 text-sm">
-                              {formatReviewDate(item.date)}
+                              {item.createdAt
+                                ? formatReviewDate(item.createdAt)
+                                : ""}
                             </div>
-                            <div className="mt-3 text-gray-700">
+                            <div className="mt-3 text-gray-700 text-base">
                               {item.content}
                             </div>
-
-                            {item.images.length > 0 && (
+                            {item.reviewImageDTOs?.length > 0 && (
                               <div className="mt-3 flex flex-wrap gap-2">
-                                {item.images.map((img, index) => (
+                                {item.reviewImageDTOs.map((img, idx) => (
                                   <div
-                                    key={index}
-                                    className="w-16 h-16 rounded overflow-hidden"
+                                    key={idx}
+                                    className="w-16 h-16 rounded overflow-hidden border border-gray-200 hover:border-indigo-300 transition-all cursor-pointer"
                                   >
                                     <Image
-                                      src={img}
-                                      alt={`review-image-${index}`}
-                                      className="w-full h-full object-cover"
+                                      src={img.url}
+                                      alt={`review-image-${idx}`}
+                                      className="object-cover"
                                     />
                                   </div>
                                 ))}
@@ -853,7 +892,7 @@ const ProductDetail = () => {
                   pagination={{
                     onChange: (page) => setReviewPage(page),
                     pageSize: 5,
-                    total: reviewStats.total,
+                    total: reviews.length,
                     current: reviewPage,
                     showSizeChanger: false,
                     className: "mt-6",
@@ -861,13 +900,101 @@ const ProductDetail = () => {
                 />
               ) : (
                 <Empty
-                  description="Chưa có đánh giá nào cho sản phẩm này"
+                  description={
+                    <span className="text-gray-500">
+                      Chưa có đánh giá nào cho sản phẩm này. Hãy là người đánh
+                      giá đầu tiên!
+                    </span>
+                  }
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  className="py-12"
+                  className="py-12 bg-gray-50 rounded-lg"
                 />
               )}
             </div>
           </div>
+
+          {/* Modal viết đánh giá */}
+          <Modal
+            title="Viết đánh giá sản phẩm"
+            open={isReviewModalOpen}
+            onCancel={() => setIsReviewModalOpen(false)}
+            footer={null}
+            destroyOnClose
+          >
+            <Form
+              form={reviewForm}
+              layout="vertical"
+              onFinish={handleSubmitReview}
+            >
+              <Form.Item
+                name="rating"
+                label="Đánh giá"
+                rules={[{ required: true, message: "Chọn số sao!" }]}
+              >
+                <Rate />
+              </Form.Item>
+              <Form.Item
+                name="content"
+                label="Nội dung"
+                rules={[{ required: true, message: "Nhập nội dung đánh giá!" }]}
+              >
+                <Input.TextArea rows={4} />
+              </Form.Item>
+              {/* Nếu muốn upload ảnh, có thể dùng Upload ở đây */}
+              <Form.Item label="Ảnh đánh giá">
+                <Upload
+                  listType="picture"
+                  multiple
+                  customRequest={async ({ file, onSuccess, onError }) => {
+                    try {
+                      const formData = new FormData();
+                      formData.append("image", file);
+                      const res = await apiClient.post(
+                        "/api/files/images/upload",
+                        formData,
+                        {
+                          headers: { "Content-Type": "multipart/form-data" },
+                        }
+                      );
+                      const url = res.data.data.url;
+                      // Thêm url vào reviewImages
+                      setReviewImages((prev) => [...prev, url]);
+                      // Gọi onSuccess với object có url để Upload hiển thị ảnh
+                      onSuccess && onSuccess({ url }, file);
+                    } catch (err) {
+                      onError && onError(err);
+                      openErrorNotification("Upload ảnh thất bại!");
+                    }
+                  }}
+                  onRemove={(file) => {
+                    setReviewImages((prev) =>
+                      prev.filter((url) => url !== (file.url || file.thumbUrl))
+                    );
+                  }}
+                  fileList={reviewImages.map((url, idx) => ({
+                    uid: idx,
+                    name: `Ảnh ${idx + 1}`,
+                    status: "done",
+                    url,
+                  }))}
+                  accept="image/*"
+                  showUploadList={{ showRemoveIcon: true }}
+                >
+                  <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
+                </Upload>
+              </Form.Item>
+              <Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={isSubmittingReview}
+                  className="w-full"
+                >
+                  Gửi đánh giá
+                </Button>
+              </Form.Item>
+            </Form>
+          </Modal>
         </div>
       </div>
     </div>
