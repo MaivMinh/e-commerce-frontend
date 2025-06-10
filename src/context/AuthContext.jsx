@@ -111,8 +111,16 @@ export const AuthContextProvider = ({ children }) => {
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     try {
+      /// Gọi tới API để logout nếu cần
+      const token = localStorage.getItem("access-token");
+      if (!token) {
+        console.warn("No access token found for logout.");
+        return;
+      }
+      await apiClient.post(`/api/auth/logout?token=${token}`);
+
       localStorage.removeItem("access-token");
       localStorage.removeItem("refresh-token");
       localStorage.removeItem("profile");
