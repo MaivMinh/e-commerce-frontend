@@ -57,7 +57,7 @@ const Checkout = () => {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [appliedPromotion, setAppliedPromotion] = useState(null);
-  const { profile, auth } = useContext(AuthContext);
+  const { profile, auth, refreshProfile } = useContext(AuthContext);
   const [addresses, setAddresses] = useState([]);
 
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -69,56 +69,55 @@ const Checkout = () => {
 
   // Load cart data
   useEffect(() => {
-    if (auth.isAuthenticated && profile.id) {
-      setTimeout(async () => {
-        const selectedCartItems = JSON.parse(
-          localStorage.getItem("selected-cart-items") || "[]"
-        );
-        if (selectedCartItems.length === 0) {
-          notification.warning({
-            message: "Giỏ hàng trống",
-            description:
-              "Vui lòng thêm sản phẩm vào giỏ hàng trước khi thanh toán.",
-          });
-          navigate("/cart");
-          return;
-        }
-        setCartItems(selectedCartItems);
+    setLoading(true);
+    setTimeout(async () => {
+      const selectedCartItems = JSON.parse(
+        localStorage.getItem("selected-cart-items") || "[]"
+      );
+      if (selectedCartItems.length === 0) {
+        notification.warning({
+          message: "Giỏ hàng trống",
+          description:
+            "Vui lòng thêm sản phẩm vào giỏ hàng trước khi thanh toán.",
+        });
+        navigate("/cart");
+        return;
+      }
+      setCartItems(selectedCartItems);
 
-        const appliedPromotion = JSON.parse(
-          localStorage.getItem("applied-promotion") || "null"
-        );
-        setAppliedPromotion(appliedPromotion);
+      const appliedPromotion = JSON.parse(
+        localStorage.getItem("applied-promotion") || "null"
+      );
+      setAppliedPromotion(appliedPromotion);
 
-        // Set default address
-        const addresses = profile.addressDTOs;
-        setAddresses(addresses);
-        const defaultAddress = addresses.find((addr) => addr.isDefault);
-        if (defaultAddress) {
-          setSelectedAddress(defaultAddress.id);
-        } else if (addresses.length > 0) {
-          setSelectedAddress(addresses[0].id);
-        }
+      // Set default address
+      const addresses = profile.addressDTOs;
+      setAddresses(addresses);
+      const defaultAddress = addresses.find((addr) => addr.isDefault);
+      if (defaultAddress) {
+        setSelectedAddress(defaultAddress.id);
+      } else if (addresses.length > 0) {
+        setSelectedAddress(addresses[0].id);
+      }
 
-        /// fetch payment method.
-        await apiClient
-          .get("/api/payment-methods?isActive=true")
-          .then((response) => {
-            const methods = response.data.data.methods;
-            setPaymentMethods(methods);
+      /// fetch payment method.
+      await apiClient
+        .get("/api/payment-methods?isActive=true")
+        .then((response) => {
+          const methods = response.data.data.methods;
+          setPaymentMethods(methods);
 
-            // Set default payment method if available
-            if (methods.length > 0) {
-              setPaymentMethodCode(methods[0].code);
-            }
-          })
-          .catch((error) => {
-            console.log(error);
-          });
+          // Set default payment method if available
+          if (methods.length > 0) {
+            setPaymentMethodCode(methods[0].code);
+          }
+        })
+        .catch((error) => {
+          console.log(error);
+        });
 
-        setLoading(false);
-      }, 1000);
-    }
+      setLoading(false);
+    }, 1000);
   }, [auth, profile]);
 
   const handleAddAddress = async (values) => {
@@ -135,27 +134,20 @@ const Checkout = () => {
       const response = await apiClient.post("/api/users/addresses", payload);
 
       if (response.data) {
+        // Refresh profile để cập nhật địa chỉ mới
+        await refreshProfile();
+
         notification.success({
           message: "Thêm địa chỉ thành công",
           description:
             "Địa chỉ mới đã được thêm vào danh sách địa chỉ của bạn.",
         });
 
-        // Cập nhật danh sách địa chỉ
-        const newAddress = response.data.data;
-        const updatedAddresses = [...addresses];
-
-        // Nếu địa chỉ mới là mặc định, cập nhật các địa chỉ khác
-        if (newAddress.isDefault) {
-          updatedAddresses.forEach((addr) => {
-            addr.isDefault = false;
-          });
-        }
-
-        updatedAddresses.push(newAddress);
-        setAddresses(updatedAddresses);
+        // Cập nhật danh sách địa chỉ từ context
+        setAddresses(profile.addressDTOs);
 
         // Chọn địa chỉ mới
+        const newAddress = response.data.data;
         setSelectedAddress(newAddress.id);
 
         // Đóng modal và reset form

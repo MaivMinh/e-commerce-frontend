@@ -10,6 +10,7 @@ export const AuthContext = createContext({
   loading: null,
   login: () => {},
   logout: () => {},
+  refreshProfile: () => {},
   profile: {
     id: null,
     username: null,
@@ -68,17 +69,28 @@ export const AuthContextProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  const refreshProfile = async () => {
+    if (auth.isAuthenticated) {
+      await fetchProfileData();
+    }
+  };
+
+  const fetchProfileData = async () => {
+    try {
+      const response = await apiClient.get(`/api/users/profile`);
+      setProfile(response.data.data);
+      localStorage.setItem("profile", JSON.stringify(response.data.data));
+    } catch (error) {
+      console.error("Failed to fetch profile data:", error);
+      // Sử dụng dữ liệu từ localStorage nếu call API thất bại
+      if (localStorage.getItem("profile")) {
+        setProfile(JSON.parse(localStorage.getItem("profile")));
+      }
+    }
+  };
+
   useEffect(() => {
     if (auth.isAuthenticated) {
-      const fetchProfileData = async () => {
-        if (localStorage.getItem("profile")) {
-          setProfile(JSON.parse(localStorage.getItem("profile")));
-          return;
-        }
-        const response = await apiClient.get(`/api/users/profile`);
-        setProfile(response.data.data);
-        localStorage.setItem("profile", JSON.stringify(response.data.data));
-      };
       fetchProfileData();
     }
   }, [auth]);
@@ -156,6 +168,7 @@ export const AuthContextProvider = ({ children }) => {
         loading: loading,
         login: handleLogin,
         logout: handleLogout,
+        refreshProfile, 
         profile: profile,
       }}
     >
