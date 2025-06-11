@@ -38,7 +38,7 @@ const { TabPane } = Tabs;
 const { Option } = Select;
 
 const Profile = () => {
-  const { refreshProfile } = useContext(AuthContext);
+  const { refreshProfile, auth } = useContext(AuthContext);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileForm] = Form.useForm();
@@ -279,14 +279,45 @@ const Profile = () => {
   const handlePasswordChange = async (values) => {
     setSavingPassword(true);
     try {
-      // Mô phỏng API call
-      // await apiClient.post('/api/users/change-password', values);
+      // Chuẩn bị payload theo đúng cấu trúc ChangePasswordDTO
+      const payload = {
+        accountId: auth.accountId,
+        oldPassword: values.currentPassword,
+        newPassword: values.newPassword,
+        confirmNewPassword: values.confirmPassword,
+      };
 
+      if (payload.newPassword !== payload.confirmNewPassword) {
+        message.error("Mật khẩu mới và xác nhận mật khẩu không khớp");
+        return;
+      }
+
+      // Gọi API đổi mật khẩu
+      await apiClient.post("/api/auth/change-password", payload);
+
+      // Hiển thị thông báo thành công
       message.success("Đổi mật khẩu thành công");
+
+      // Reset form sau khi đổi mật khẩu thành công
       passwordForm.resetFields();
     } catch (error) {
       console.error("Error changing password:", error);
-      message.error("Đổi mật khẩu thất bại");
+
+      // Xử lý các loại lỗi phổ biến
+      if (error.response) {
+        if (error.response.status === 401) {
+          message.error("Mật khẩu hiện tại không chính xác");
+        } else if (error.response.status === 400) {
+          message.error(
+            error.response.data.message ||
+              "Mật khẩu mới và xác nhận mật khẩu không khớp"
+          );
+        } else {
+          message.error(error.response.data.message || "Đổi mật khẩu thất bại");
+        }
+      } else {
+        message.error("Đổi mật khẩu thất bại. Vui lòng thử lại sau.");
+      }
     } finally {
       setSavingPassword(false);
     }
