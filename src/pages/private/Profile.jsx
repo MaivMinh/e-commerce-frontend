@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import {
   Typography,
   Card,
@@ -31,12 +31,14 @@ import {
 import moment from "moment";
 import apiClient from "../../services/apiClient";
 import dayjs from "dayjs";
+import { AuthContext } from "../../context/AuthContext";
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
 const Profile = () => {
+  const { refreshProfile } = useContext(AuthContext);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileForm] = Form.useForm();
@@ -65,10 +67,10 @@ const Profile = () => {
       const response = await apiClient.get("/api/users/profile");
       const data = response.data.data;
 
-      // Đảm bảo avatarUrl có giá trị để tương thích với code cũ
+      // Đảm bảo avatar có giá trị để tương thích với code cũ
       const updatedData = {
         ...data,
-        avatarUrl: data.avatar || data.avatarUrl,
+        avatar: data.avatar || data.avatar,
       };
 
       setUserProfile(updatedData);
@@ -163,7 +165,7 @@ const Profile = () => {
       setUserProfile({
         ...userProfile,
         avatar: imageUrl,
-        avatarUrl: imageUrl, // Giữ avatarUrl cho UI nếu cần
+        avatar: imageUrl, // Giữ avatar cho UI nếu cần
       });
 
       message.success("Cập nhật ảnh đại diện thành công");
@@ -221,7 +223,7 @@ const Profile = () => {
       setUserProfile({
         ...userProfile,
         avatar: null,
-        avatarUrl: null,
+        avatar: null,
         tempAvatarRemoved: false,
       });
 
@@ -238,11 +240,6 @@ const Profile = () => {
   const handleProfileUpdate = async (values) => {
     setSavingProfile(true);
     try {
-      console.log(
-        "Đang cập nhật profile, avatarToBeRemoved:",
-        avatarToBeRemoved
-      ); // Log để debug
-
       // Xây dựng payload với đầy đủ thông tin
       const payload = {
         ...values,
@@ -253,25 +250,22 @@ const Profile = () => {
 
       // Chỉ set avatar = null khi người dùng đã xác nhận xóa avatar
       if (avatarToBeRemoved) {
-        console.log("Đặt avatar = null trong payload"); // Log để debug
         payload.avatar = null;
       } else {
         // Giữ nguyên avatar hiện tại
-        console.log("Giữ nguyên avatar:", userProfile.avatar); // Log để debug
         payload.avatar = userProfile.avatar;
       }
 
-      // In ra payload trước khi gửi API
-      console.log("Payload gửi đi:", payload);
-
       // Gọi API cập nhật
-      const response = await apiClient.put("/api/users", payload);
-      console.log("Kết quả API:", response.data); // Log kết quả API
+      await apiClient.put("/api/users", payload);
 
       // Reset trạng thái xóa avatar
       setAvatarToBeRemoved(false);
 
-      // Tải lại thông tin profile
+      // Làm mới thông tin profile từ AuthContext
+      refreshProfile();
+
+      // Tải lại thông tin profile cho component này
       fetchUserProfile();
       message.success("Cập nhật thông tin thành công");
     } catch (error) {
@@ -322,55 +316,42 @@ const Profile = () => {
     setSavingAddress(true);
     try {
       if (editingAddress) {
-        // Mô phỏng cập nhật địa chỉ
-        await apiClient.put(`/api/users/addresses`, values);
-
-        // Cập nhật state local
-        const updatedAddresses = userProfile.addressDTOs.map((addr) =>
-          addr.id === editingAddress.id
-            ? { ...addr, ...values }
-            : values.isDefault && addr.id !== editingAddress.id
-            ? { ...addr, isDefault: false }
-            : addr
-        );
-
-        setUserProfile({
-          ...userProfile,
-          addressDTOs: updatedAddresses,
-        });
-
-        message.success("Cập nhật địa chỉ thành công");
-      } else {
-        // Mô phỏng thêm địa chỉ mới
-        // const response = await apiClient.post('/api/users/addresses', values);
-        // const newAddress = response.data;
-
-        // Mô phỏng tạo địa chỉ mới với ID giả
-        const newAddress = {
-          id: `new-address-${Date.now()}`,
-          ...values,
+        // Cập nhật địa chỉ hiện có
+        const payload = {
+          id: editingAddress.id,
+          userId: userProfile.id,
+          fullName: values.fullName,
+          phone: values.phone,
+          address: values.address,
+          isDefault: values.isDefault,
         };
 
-        // Cập nhật state local
-        const updatedAddresses = values.isDefault
-          ? userProfile.addressDTOs.map((addr) => ({
-              ...addr,
-              isDefault: false,
-            }))
-          : [...userProfile.addressDTOs];
+        await apiClient.put(`/api/users/addresses`, payload);
+        message.success("Cập nhật địa chỉ thành công");
+      } else {
+        // Thêm địa chỉ mới
+        const payload = {
+          userId: userProfile.id,
+          fullName: values.fullName,
+          phone: values.phone,
+          address: values.address,
+          isDefault: values.isDefault,
+        };
 
-        setUserProfile({
-          ...userProfile,
-          addressDTOs: [...updatedAddresses, newAddress],
-        });
-
+        await apiClient.post("/api/users/addresses", payload);
         message.success("Thêm địa chỉ mới thành công");
       }
+
+      // Làm mới thông tin profile từ AuthContext
+      refreshProfile();
+
+      // Tải lại thông tin profile cho component này
+      await fetchUserProfile();
 
       setIsAddressModalVisible(false);
     } catch (error) {
       console.error("Error saving address:", error);
-      message.error("Lưu địa chỉ thất bại");
+      message.error(error.response?.data?.message || "Lưu địa chỉ thất bại");
     } finally {
       setSavingAddress(false);
     }
@@ -378,7 +359,7 @@ const Profile = () => {
 
   const handleSetDefaultAddress = async (addressId) => {
     try {
-      /// Lấy thông tin địa chỉ từ state
+      // Lấy thông tin địa chỉ từ state
       const addressToSetDefault = userProfile.addressDTOs.find(
         (addr) => addr.id === addressId
       );
@@ -388,21 +369,17 @@ const Profile = () => {
         return;
       }
 
+      // Gửi request cập nhật địa chỉ mặc định
       await apiClient.put("/api/users/addresses", {
         ...addressToSetDefault,
-        isDefault: true, // Đặt địa chỉ này làm mặc định
-      })
-
-      // Cập nhật state local
-      const updatedAddresses = userProfile.addressDTOs.map((addr) => ({
-        ...addr,
-        isDefault: addr.id === addressId,
-      }));
-
-      setUserProfile({
-        ...userProfile,
-        addressDTOs: updatedAddresses,
+        isDefault: true,
       });
+
+      // Làm mới thông tin profile từ AuthContext
+      refreshProfile();
+
+      // Tải lại thông tin profile cho component này
+      await fetchUserProfile();
 
       message.success("Đã đặt làm địa chỉ mặc định");
     } catch (error) {
@@ -415,15 +392,11 @@ const Profile = () => {
     try {
       await apiClient.delete(`/api/users/addresses/${addressId}`);
 
-      // Cập nhật state local
-      const updatedAddresses = userProfile.addressDTOs.filter(
-        (addr) => addr.id !== addressId
-      );
+      // Làm mới thông tin profile từ AuthContext
+      refreshProfile();
 
-      setUserProfile({
-        ...userProfile,
-        addressDTOs: updatedAddresses,
-      });
+      // Tải lại thông tin profile cho component này
+      await fetchUserProfile();
 
       message.success("Xóa địa chỉ thành công");
     } catch (error) {
@@ -477,12 +450,13 @@ const Profile = () => {
                         src={
                           userProfile.tempAvatarRemoved
                             ? null
-                            : userProfile.avatar || userProfile.avatarUrl
+                            : userProfile.avatar || userProfile.avatar
                         }
                         icon={
                           (userProfile.tempAvatarRemoved ||
-                            (!userProfile.avatar &&
-                              !userProfile.avatarUrl)) && <UserOutlined />
+                            (!userProfile.avatar && !userProfile.avatar)) && (
+                            <UserOutlined />
+                          )
                         }
                         className="bg-indigo-500 mb-4"
                       />
@@ -505,7 +479,7 @@ const Profile = () => {
 
                   {/* Hiển thị nút xóa avatar nếu có avatar */}
                   {!userProfile.tempAvatarRemoved &&
-                    (userProfile.avatar || userProfile.avatarUrl) && (
+                    (userProfile.avatar || userProfile.avatar) && (
                       <div>
                         <Button
                           size="small"
@@ -855,7 +829,7 @@ const Profile = () => {
           <Form.Item name="id" noStyle initialValue={editingAddress?.id}>
             <Input type="hidden" />
           </Form.Item>
-        
+
           <Form.Item
             name="fullName"
             label="Họ tên"
