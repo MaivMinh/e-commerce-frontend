@@ -36,6 +36,7 @@ const Header = () => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const { profile } = useContext(AuthContext);
 
   // Tạo debounced search function để tránh gọi API quá nhiều
   const debouncedSearch = useMemo(
@@ -289,17 +290,27 @@ const Header = () => {
                     trigger={["hover"]}
                     overlayClassName="user-dropdown-menu"
                   >
-                    <Button
-                      icon={<UserOutlined />}
-                      shape="circle"
-                      size="large"
-                      className="hover:shadow-md transition-all"
-                      style={{
-                        borderColor: "#4F46E5",
-                        color: "#4F46E5",
-                        fontSize: "20px",
-                      }}
-                    />
+                    {profile.avatar ? (
+                      // Hiển thị avatar nếu có
+                      <Avatar
+                        src={profile.avatar}
+                        size="large"
+                        className="cursor-pointer hover:shadow-md transition-all border-2 border-indigo-500"
+                      />
+                    ) : (
+                      // Hiển thị icon mặc định nếu không có avatar
+                      <Button
+                        icon={<UserOutlined />}
+                        shape="circle"
+                        size="large"
+                        className="hover:shadow-md transition-all"
+                        style={{
+                          borderColor: "#4F46E5",
+                          color: "#4F46E5",
+                          fontSize: "20px",
+                        }}
+                      />
+                    )}
                   </Dropdown>
 
                   <Tooltip
