@@ -1,21 +1,4 @@
 import {
-  AutoComplete,
-  Button,
-  Dropdown,
-  Input,
-  Space,
-  Tooltip,
-  Avatar,
-  Spin,
-  Tag,
-  Divider,
-} from "antd";
-import { useContext, useMemo, useState, useEffect } from "react";
-import { AuthContext } from "../context/AuthContext";
-import { Link, useNavigate } from "react-router-dom";
-import logo from "../assets/images/logo.png";
-import {
-  FileTextFilled,
   LoginOutlined,
   LogoutOutlined,
   OrderedListOutlined,
@@ -25,11 +8,27 @@ import {
   TagOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import apiClient from "../services/apiClient";
+import {
+  AutoComplete,
+  Avatar,
+  Button,
+  Divider,
+  Dropdown,
+  Input,
+  Spin,
+  Tag,
+  Tooltip,
+} from "antd";
 import debounce from "lodash.debounce";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import logo from "../assets/images/logo.png";
+import { AuthContext } from "../context/AuthContext";
+import apiClient from "../services/apiClient";
+import { KeycloakContext } from "./KeycloakProvider";
+import { login, logout } from "../services/keycloak";
 
 const Header = () => {
-  const { auth, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
   const [options, setOptions] = useState([]);
@@ -37,6 +36,7 @@ const Header = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const { profile } = useContext(AuthContext);
+  const { keycloak, authenticated } = useContext(KeycloakContext);
 
   // Tạo debounced search function để tránh gọi API quá nhiều
   const debouncedSearch = useMemo(
@@ -158,13 +158,21 @@ const Header = () => {
       }
     };
 
-    fetchCategories();
+    if (authenticated) {
+      fetchCategories();
+    }
   }, []);
 
   const handleCategoryClick = (categorySlug, categoryName) => {
     navigate(`/products?category=${categorySlug}`, {
       state: { categoryName },
     });
+  };
+
+  const handleLogin = () => {
+    if (keycloak) {
+      keycloak.login();
+    }
   };
 
   const userMenuItems = [
@@ -282,7 +290,7 @@ const Header = () => {
               </div>
 
               {/* User/Cart Icons */}
-              {auth.isAuthenticated ? (
+              {authenticated ? (
                 <div className="flex items-center gap-x-3">
                   <Dropdown
                     menu={{ items: userMenuItems }}
@@ -333,7 +341,7 @@ const Header = () => {
                 </div>
               ) : (
                 <Button
-                  onClick={() => navigate("/login")}
+                  onClick={login}
                   type="primary"
                   style={{
                     backgroundColor: "#4F46E5",

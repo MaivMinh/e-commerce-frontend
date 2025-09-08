@@ -70,9 +70,9 @@ const Home = () => {
       setLoading(true);
       try {
         const response = await apiClient.get(
-          `/api/products/newest-products?page=${currentPage}&size=${pageSize}`
+          `/api/products/newest?page=${currentPage}&size=${pageSize}`
         );
-        setProducts(response.data.data.products);
+        setProducts(response.data.data);
         setTotalProducts(response.data.data.totalElements);
       } catch (error) {
         console.error("Failed to fetch products:", error);
@@ -93,7 +93,7 @@ const Home = () => {
           `/api/categories?page=${currentCategoryPage}&size=${categoryPageSize}`
         );
 
-        setCategories(response.data.data.categories);
+        setCategories(response.data.data);
         setTotalCategories(response.data.data.totalElements || 0);
       } catch (error) {
         console.error("Failed to fetch categories:", error);
@@ -241,10 +241,7 @@ const Home = () => {
                             <div className="overflow-hidden h-32">
                               <img
                                 alt={category.name}
-                                src={
-                                  category.image ||
-                                  ``
-                                }
+                                src={category.image || ``}
                                 className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
                               />
                             </div>
@@ -287,10 +284,7 @@ const Home = () => {
                             <div className="overflow-hidden h-32">
                               <img
                                 alt={category.name}
-                                src={
-                                  category.image ||
-                                  ``
-                                }
+                                src={category.image || ``}
                                 className="w-full h-full object-cover transition-transform hover:scale-110 duration-500"
                                 onError={(e) => {
                                   e.target.src = ``;

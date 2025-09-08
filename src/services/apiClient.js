@@ -1,4 +1,5 @@
 import axios from "axios";
+import { keycloak } from "./keycloak";
 
 /// Cấu hình chung.
 const API_BASE_URL = "http://localhost:8080/";
@@ -6,7 +7,7 @@ const PROD_API_BASE_URL = "https://www.moviereservation.software/";
 
 /// Tạo instance tập trung.
 const apiClient = axios.create({
-  baseURL: PROD_API_BASE_URL,
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -25,34 +26,13 @@ const apiClient = axios.create({
 - Cuối cùng, ta gọi lại apiClient với config của error object.
 */
 
-const refreshToken = async () => {
-  const refreshToken = localStorage.getItem("refresh-token");
-  if (!refreshToken) {
-    return Promise.reject("No refresh token found");
-  }
-
-  return apiClient
-    .get(`/api/auth/refresh-token?token=${refreshToken}`)
-    .then((response) => {
-      const payload = response.data;
-      const data = payload.data;
-      const newAccessToken = data.accessToken;
-      localStorage.setItem("access-token", newAccessToken);
-      return newAccessToken;
-    })
-    .catch((error) => {
-      console.error("Failed to refresh token:", error);
-      return null;
-    });
-};
-
 /// Interceptors cho request.
 apiClient.interceptors.request.use(
   (config) => {
     // Do something before request is sent
-    const token = localStorage.getItem("access-token");
-    if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+    
+    if (keycloak.token) {
+      config.headers["Authorization"] = `Bearer ${keycloak.token}`;
     }
     return config;
   },
@@ -62,7 +42,7 @@ apiClient.interceptors.request.use(
   }
 );
 
-apiClient.interceptors.response.use(
+/* apiClient.interceptors.response.use(
   (response) => {
     // Do something with response data
     return response;
@@ -101,6 +81,6 @@ apiClient.getData = async (url, params = {}, config = {}) => {
     ...config,
   });
   return response.data;
-};
+}; */
 
 export default apiClient;

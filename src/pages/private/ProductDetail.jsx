@@ -56,6 +56,7 @@ import apiClient from "../../services/apiClient";
 import { AuthContext } from "../../context/AuthContext";
 import { Modal, Upload } from "antd";
 import { colgroup } from "framer-motion/client";
+import { getUserId } from "../../services/keycloak";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -323,10 +324,10 @@ const ProductDetail = () => {
   const handleQuantityDisplay = (colorName) => {
     ///Lấy số lượng hiện tại của sản phẩm. Ứng với size và color đã chọn
     if (selectedSize && colorName) {
-      console.log(selectedSize, selectedColor);
       const variant = variants.find(
         (v) => v.size === selectedSize && v.colorName === colorName
       );
+      console.log(variant)
       setCurrentQuantity(variant ? variant.quantity : 0);
     } else {
       console.log("Chưa chọn size hoặc color", selectedSize, colorName);
@@ -362,8 +363,11 @@ const ProductDetail = () => {
         },
         quantity: quantity,
       };
+
+      const userId = getUserId();
+
       const response = await apiClient.post(
-        `/api/carts/${auth.accountId}/items`,
+        `/api/carts/cart-items`,
         data
       );
       openSuccessNofitication(
@@ -456,7 +460,7 @@ const ProductDetail = () => {
               </div>
 
               {/* Thumbnail Images */}
-              <div className="flex flex-items justify-between items-center mx-[4%] mt-8">
+              <div className="flex flex-items justify-start items-center mx-[4%] mt-8 gap-x-6">
                 <Image.PreviewGroup
                   preview={{
                     toolbarRender: (

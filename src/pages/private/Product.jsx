@@ -148,7 +148,7 @@ const Product = () => {
 
       // Gọi API filter
       const response = await apiClient.post(
-        `/api/products/filtered-products?${params.toString()}`,
+        `/api/products/search?${params.toString()}`,
         filterPayload
       );
 
@@ -212,14 +212,12 @@ const Product = () => {
         isNew: isNew || false,
         isFeatured: isFeatured || false,
       });
-      
 
       if (categorySlug) {
         // Tìm category với slug tương ứng
         const category = categories.find((cat) => cat.slug === categorySlug);
 
         if (category) {
-          
           /// Tìm các danh mục con của category này
           const childCategories = categories
             .filter((cat) => cat.parentId === category.id)

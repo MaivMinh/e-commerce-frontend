@@ -10,14 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-keycloak/web": "^3.4.0",
     "@stomp/stompjs": "^7.1.1",
     "@tailwindcss/vite": "^4.1.7",
     "antd": "^5.25.2",
     "axios": "^1.9.0",
     "framer-motion": "^12.12.2",
     "jwt-decode": "^4.0.0",
+    "keycloak-js": "^26.2.0",
     "lodash.debounce": "^4.0.8",
     "moment": "^2.30.1",
+    "oidc-client": "^1.11.5",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

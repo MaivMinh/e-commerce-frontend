@@ -18,111 +18,128 @@ import Checkout from "./pages/private/Checkout";
 import Product from "./pages/private/Product";
 import { CartContextProvider } from "./context/CartContext";
 import Profile from "./pages/private/Profile";
+import { KeycloakProvider } from "./components/KeycloakProvider";
 
 function App() {
   return (
-    <AuthContextProvider>
-      <CartContextProvider>
-        <Router>
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                <PublicRoute>
-                  <Login />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <PublicRoute>
-                  <Register />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/account/forgot-password"
-              element={
-                <PublicRoute>
-                  <ForgotPassword />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/account/reset-password"
-              element={
-                <PublicRoute>
-                  <ResetPassword />
-                </PublicRoute>
-              }
-            />
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<Home />} />
-              <Route path="/home" element={<Home />} />
+    <KeycloakProvider>
+      <AuthContextProvider>
+        <CartContextProvider>
+          <Router>
+            <Routes>
               <Route
-                path="/profile"
+                path="/login"
                 element={
-                  <PrivateRoute>
-                    <Profile />
-                  </PrivateRoute>
+                  <PublicRoute>
+                    <Login />
+                  </PublicRoute>
                 }
               />
               <Route
-                path="/cart"
+                path="/register"
                 element={
-                  <PrivateRoute>
-                    <Cart />
-                  </PrivateRoute>
+                  <PublicRoute>
+                    <Register />
+                  </PublicRoute>
                 }
               />
               <Route
-                path="/products"
+                path="/account/forgot-password"
                 element={
-                  <PrivateRoute>
-                    <Product />
-                  </PrivateRoute>
+                  <PublicRoute>
+                    <ForgotPassword />
+                  </PublicRoute>
                 }
               />
               <Route
-                path="/products/:slug"
+                path="/account/reset-password"
                 element={
-                  <PrivateRoute>
-                    <ProductDetail />
-                  </PrivateRoute>
+                  <PublicRoute>
+                    <ResetPassword />
+                  </PublicRoute>
                 }
               />
-              <Route
-                path="/orders"
-                element={
-                  <PrivateRoute>
-                    <Order />
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/wishlist"
-                element={
-                  <PrivateRoute>
-                    <div>Wishlist Page</div>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/checkout"
-                element={
-                  <PrivateRoute>
-                    <Checkout />
-                  </PrivateRoute>
-                }
-              />
-              <Route path="/search" element={<SearchResults />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Router>
-      </CartContextProvider>
-    </AuthContextProvider>
+              <Route path="/" element={<MainLayout />}>
+                <Route
+                  index
+                  element={
+                    <PrivateRoute>
+                      <Home />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/home"
+                  element={
+                    <PrivateRoute>
+                      <Home />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <PrivateRoute>
+                      <Profile />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/cart"
+                  element={
+                    <PrivateRoute>
+                      <Cart />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/products"
+                  element={
+                    <PrivateRoute>
+                      <Product />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/products/:slug"
+                  element={
+                    <PrivateRoute>
+                      <ProductDetail />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/orders"
+                  element={
+                    <PrivateRoute>
+                      <Order />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/wishlist"
+                  element={
+                    <PrivateRoute>
+                      <div>Wishlist Page</div>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/checkout"
+                  element={
+                    <PrivateRoute>
+                      <Checkout />
+                    </PrivateRoute>
+                  }
+                />
+                <Route path="/search" element={<SearchResults />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Router>
+        </CartContextProvider>
+      </AuthContextProvider>
+    </KeycloakProvider>
   );
 }
 

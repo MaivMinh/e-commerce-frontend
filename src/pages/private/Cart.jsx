@@ -27,6 +27,7 @@ import { Link, useNavigate } from "react-router-dom";
 import apiClient from "../../services/apiClient";
 import { CartContext } from "../../context/CartContext";
 import { AuthContext } from "../../context/AuthContext";
+import { keycloak } from "../../services/keycloak";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -45,10 +46,10 @@ const Cart = () => {
 
   // Fetch cart items (mocked)
   useEffect(() => {
-    if (auth.isAuthenticated) {
+    if (keycloak.authenticated) {
       const fetchCartItems = async () => {
         try {
-          const response = await apiClient.get(`/api/carts/${auth.accountId}`);
+          const response = await apiClient.get(`/api/carts/cart-items`);
           setCartItems(response.data.data.items || []);
           console.log(response.data.data.items);
           setSelectedItems(response.data.data.items.map((item) => item.id));
@@ -98,7 +99,7 @@ const Cart = () => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => {
       apiClient
-        .put(`/api/carts/items/${cartItemId}`, {
+        .put(`/api/carts/cart-items/${cartItemId}`, {
           productVariantDTO: {
             id: productVariantId,
           },
@@ -121,7 +122,7 @@ const Cart = () => {
   // Handle item removal
   const handleRemoveItem = (id) => {
     apiClient
-      .delete(`/api/carts/items/${id}`)
+      .delete(`/api/carts/cart-items/${id}`)
       .then((response) => {
         setCartItems((prev) => prev.filter((item) => item.id !== id));
         setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
