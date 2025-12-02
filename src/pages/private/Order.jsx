@@ -15,6 +15,7 @@ import {
   Alert,
   Card,
   Input,
+  Select,
 } from "antd";
 import {
   ShoppingOutlined,
@@ -34,10 +35,19 @@ import "dayjs/locale/vi";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
+const statusOptions = [
+  { label: "CREATED", value: "CREATED" },
+  { label: "CONFIRMED", value: "CONFIRMED" },
+  { label: "DELIVERED", value: "DELIVERED" },
+  { label: "SUCCESS", value: "SUCCESS" },
+  { label: "CANCELLED", value: "CANCELLED" },
+  { label: "ROLLBACK", value: "ROLLBACK" },
+];
 
 const Order = () => {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [status, setStatus] = useState(null);
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [error, setError] = useState(null);
@@ -47,15 +57,21 @@ const Order = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [viewingOrder, setViewingOrder] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [product, setProduct] = useState(null);
 
-  const fetchOrders = async (page = currentPage, size = pageSize) => {
+  const fetchOrders = async (
+    page = currentPage,
+    size = pageSize,
+    keyword = null,
+    status = null
+  ) => {
     setLoading(true);
     try {
-      const response = await apiClient.get("/api/orders", {
-        params: {
-          page: page,
-          size: size,
-        },
+      const response = await apiClient.post("/api/orders/search", {
+        page: page,
+        size: size,
+        keyword: keyword,
+        status: status,
       });
 
       const data = response.data.data;
@@ -69,6 +85,7 @@ const Order = () => {
     } catch (err) {
       setError("Đã xảy ra lỗi khi tải danh sách đơn hàng");
       setOrders([]);
+      setFilteredOrders([]);
     } finally {
       setLoading(false);
     }
@@ -77,6 +94,8 @@ const Order = () => {
   useEffect(() => {
     fetchOrders();
   }, []);
+
+  
 
   // Handle client-side search
   const handleSearch = (value) => {
@@ -91,39 +110,31 @@ const Order = () => {
     // Convert search to lowercase for case-insensitive comparison
     const searchLower = value.toLowerCase();
 
-    // Filter orders based on search text
-    const filtered = orders.filter((order) => {
-      // Search in order ID
-      if (order.id.toLowerCase().includes(searchLower)) {
-        return true;
-      }
-
-      // Search in product names (if order has items)
-      if (order.orderItemDTOs && order.orderItemDTOs.length > 0) {
-        return order.orderItemDTOs.some((item) =>
-          item.productVariantDTO?.name?.toLowerCase().includes(searchLower)
-        );
-      }
-
-      // Search in total amount (convert to string first)
-      if (order.total.toString().includes(searchLower)) {
-        return true;
-      }
-
-      // Search in status
-      if (order.status.toLowerCase().includes(searchLower)) {
-        return true;
-      }
-
-      return false;
+    const response = apiClient.post("/api/orders/search", {
+      page: 1,
+      size: 10,
+      keyword: searchLower,
     });
 
-    setFilteredOrders(filtered);
+    response
+      .then((res) => {
+        const data = res.data.data;
+        setFilteredOrders(data.orders || []);
+      })
+      .catch((err) => {
+        setError("Đã xảy ra lỗi khi tìm kiếm đơn hàng");
+        setFilteredOrders([]);
+      });
   };
 
   const handlePageChange = (page, pageSize) => {
     setCurrentPage(page);
-    fetchOrders(page, pageSize);
+    // pass current searchText as keyword if present
+    if (searchText && searchText.trim()) {
+      fetchOrders(page, pageSize, searchText.trim(), status);
+    } else {
+      fetchOrders(page, pageSize,null, status);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -138,6 +149,7 @@ const Order = () => {
   };
 
   const getStatusTag = (status) => {
+    console.log("get status tag");
     switch (status) {
       case "completed":
         return (
@@ -210,6 +222,27 @@ const Order = () => {
     setDrawerVisible(true);
   };
 
+  const searchOrderByStatus = (order, status) => {
+    const response = apiClient.post("/api/orders/search", {
+      page: 1,
+      size: 10,
+      keyword: searchText.trim() || null,
+      status: status,
+    });
+
+    response
+      .then((res) => {
+        const data = res.data.data;
+        setFilteredOrders(data.orders || []);
+        return true;
+      })
+      .catch((err) => {
+        setError("Đã xảy ra lỗi khi lọc đơn hàng theo trạng thái");
+        setFilteredOrders([]);
+      });
+    return false;
+  };
+
   const columns = [
     {
       title: "Mã đơn hàng",
@@ -240,15 +273,6 @@ const Order = () => {
       dataIndex: "status",
       key: "status",
       render: (status) => getStatusTag(status),
-      filters: [
-        { text: "Hoàn thành", value: "completed" },
-        { text: "Đang xử lý", value: "processing" },
-        { text: "Đang giao", value: "shipped" },
-        { text: "Chờ xử lý", value: "pending" },
-        { text: "Thất bại", value: "failed" },
-        { text: "Đã hủy", value: "cancelled" },
-      ],
-      onFilter: (value, record) => record.status === value,
     },
     {
       title: "Thanh toán",
@@ -290,19 +314,48 @@ const Order = () => {
             className="mb-4"
           />
         )}
-        <div className="max-w-full flex flex-row justify-end items-center mb-4">
+        {/* Add status filter and search in one row */}
+        <div className="max-w-full flex flex-row justify-between items-center mb-4 gap-4">
+          <Select
+            allowClear
+            placeholder="Chọn trạng thái"
+            size="large"
+            value={status}
+            onChange={(value) => {
+              setStatus(value || null);
+              setCurrentPage(1);
+              const kw =
+                searchText && searchText.trim() ? searchText.trim() : null;
+              fetchOrders(1, pageSize, kw, value || null);
+            }}
+            options={[
+              { label: "Tất cả", value: null },
+              { label: "Đã tạo", value: "CREATED" },
+              { label: "Đã xác nhận", value: "CONFIRMED" },
+              { label: "Đã giao", value: "DELIVERED" },
+              { label: "Thành công", value: "SUCCESS" },
+              { label: "Thất bại", value: "CANCELLED" },
+              { label: "Đã hủy", value: "ROLLBACK" },
+            ]}
+            style={{ width: 200 }}
+          />
+
           <Search
             placeholder="Tìm kiếm theo mã đơn hàng hoặc sản phẩm"
             allowClear
             enterButton={<SearchOutlined />}
             size="large"
-            onSearch={handleSearch}
+            onSearch={(value) => {
+              const kw = (value || "").trim();
+              setSearchText(kw);
+              setCurrentPage(1);
+              fetchOrders(1, pageSize, kw, status);
+            }}
             onChange={(e) => {
-              // Call handleSearch with the current input value on every change
-              handleSearch(e.target.value);
+              setSearchText(e.target.value);
             }}
             style={{
-              width: "50%"
+              width: "50%",
             }}
           />
         </div>
@@ -313,14 +366,7 @@ const Order = () => {
             dataSource={filteredOrders}
             rowKey="id"
             loading={loading}
-            pagination={
-              !searchText
-                ? false
-                : {
-                    pageSize: 10,
-                    hideOnSinglePage: true,
-                  }
-            }
+            pagination={false}
             locale={{
               emptyText: searchText ? (
                 <Empty
@@ -333,7 +379,7 @@ const Order = () => {
             className="bg-white rounded-lg overflow-hidden"
           />
 
-          {!searchText && totalElements > 0 && (
+          {totalElements > 0 && (
             <div className="flex justify-end mt-4">
               <Pagination
                 current={currentPage}
@@ -398,27 +444,27 @@ const Order = () => {
             <div className="mb-6">
               <Text type="secondary">Sản phẩm</Text>
               <div className="mt-2">
-                {viewingOrder.orderItemDTOs.length > 0 ? (
-                  viewingOrder.orderItemDTOs.map((item) => (
+                {viewingOrder.items.length > 0 ? (
+                  viewingOrder.items.map((item) => (
                     <div
                       key={item.id}
                       className="flex items-start py-3 border-b"
                     >
                       <div className="w-16 h-16 flex-shrink-0">
                         <Image
-                          src={item.productVariantDTO.cover}
-                          alt={item.productVariantDTO.name}
+                          src={item.productVariant.cover}
+                          alt={item.productVariant.name}
                           className="w-full h-full object-cover rounded"
                           preview={false}
                         />
                       </div>
                       <div className="ml-3 flex-grow">
                         <div className="font-medium">
-                          {item.productVariantDTO.name}
+                          {item.productVariant.name}
                         </div>
                         <div className="text-gray-500 text-sm">
-                          Size: {item.productVariantDTO.size}, Màu:{" "}
-                          {item.productVariantDTO.colorName}
+                          Size: {item.productVariant.size}, Màu:{" "}
+                          {item.productVariant.colorName}
                         </div>
                         <div className="flex justify-between items-center mt-1">
                           <div className="text-gray-500">

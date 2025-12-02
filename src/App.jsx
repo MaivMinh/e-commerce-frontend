@@ -19,6 +19,8 @@ import Product from "./pages/private/Product";
 import { CartContextProvider } from "./context/CartContext";
 import Profile from "./pages/private/Profile";
 import { KeycloakProvider } from "./components/KeycloakProvider";
+import EventList from "./pages/private/EventList";
+import EventDetail from "./pages/private/EventDetail";
 
 function App() {
   return (
@@ -129,6 +131,22 @@ function App() {
                   element={
                     <PrivateRoute>
                       <Checkout />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/events"
+                  element={
+                    <PrivateRoute>
+                      <EventList />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/events/:eventId"
+                  element={
+                    <PrivateRoute>
+                      <EventDetail />
                     </PrivateRoute>
                   }
                 />

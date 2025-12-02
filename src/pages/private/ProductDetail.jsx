@@ -78,6 +78,7 @@ const ProductDetail = () => {
   });
 
   const [reviewPage, setReviewPage] = useState(1);
+  const [reviewSize, setReviewSize] = useState(10);
   const [reviewFilter, setReviewFilter] = useState("all");
 
   const [selectedSize, setSelectedSize] = useState(null);
@@ -100,10 +101,17 @@ const ProductDetail = () => {
   const fetchReviews = async () => {
     if (!product?.id) return;
     try {
-      const res = await apiClient.get(`/api/reviews/${product.id}`);
-      console.log("Reviews data:", res.data);
+      const filterParams = {
+        page: reviewPage,
+        size: reviewSize,
+        productId: product.id,
+        minRating: null,
+        maxRating: null,
+      };
+      const res = await apiClient.post(`/api/reviews/search`, filterParams);
       // Cập nhật đúng cấu trúc dữ liệu
-      setReviews(res.data.data.reviews);
+      console.log(res.data.data.content)
+      setReviews(res.data.data.content || []);
       // Cập nhật stats nếu backend trả về
       if (res.data.data.totalElements) {
         setReviewStats((prev) => ({
@@ -133,7 +141,7 @@ const ProductDetail = () => {
   // Like review
   const handleLikeReview = async (reviewId) => {
     try {
-      await apiClient.post(`/api/reviews/${reviewId}/like`);
+      await apiClient.patch(`/api/reviews/${reviewId}/like`);
       fetchReviews();
     } catch (err) {
       openErrorNotification("Bạn cần đăng nhập để thích đánh giá.");
@@ -145,7 +153,6 @@ const ProductDetail = () => {
     setIsSubmittingReview(true);
     try {
       const data = {
-        accountId: auth.accountId,
         productId: product.id,
         rating: values.rating,
         content: values.content,
@@ -162,10 +169,8 @@ const ProductDetail = () => {
       fetchReviews();
     } catch (err) {
       setIsReviewModalOpen(false);
-      if (err.response && err.response.status === 403) {
-        openErrorNotification("Bạn cần mua sản phẩm này để đánh giá.");
-      } else {
-        openErrorNotification("Có lỗi xảy ra khi gửi đánh giá.");
+      if (err.response) {
+        openErrorNotification(err.response.data.message);
       }
     } finally {
       setIsSubmittingReview(false);
@@ -173,9 +178,7 @@ const ProductDetail = () => {
   };
 
   useEffect(() => {
-    if (product?.id) {
       fetchReviews();
-    }
   }, [product?.id, reviewPage, reviewFilter]);
 
   // Format thời gian
@@ -260,7 +263,6 @@ const ProductDetail = () => {
   useEffect(() => {
     const fetchProductDetail = async () => {
       try {
-        // For demo purposes, we'll use the provided data instead of API call
         const response = await apiClient.get(`/api/products/slug?name=${slug}`);
         const product = response.data.data;
         setProduct(product);

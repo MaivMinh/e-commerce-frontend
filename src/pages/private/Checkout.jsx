@@ -1,17 +1,15 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Typography,
   Button,
   Form,
   Input,
-  Select,
   Radio,
   Space,
   Divider,
   Steps,
   Image,
   List,
-  Tag,
   notification,
   Modal,
   Result,
@@ -29,51 +27,76 @@ import {
   LockOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { AuthContext } from "../../context/AuthContext";
 import apiClient from "../../services/apiClient";
+import { keycloak } from "../../services/keycloak";
 
 const { Title, Text, Paragraph } = Typography;
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [form] = Form.useForm();
 
   // States
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [cartItems, setCartItems] = useState([]);
-  const [paymentMethodCode, setPaymentMethodCode] = useState(null);
+  const [paymentMethodId, setPaymentMethodId] = useState(null);
   const [paymentMethods, setPaymentMethods] = useState([]);
-  const [selectedWallet, setSelectedWallet] = useState("momo");
   const [showQRModal, setShowQRModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [orderId, setOrderId] = useState(null);
+  const [orderId, setOrderId] = useState(
+    "ORD" + Math.floor(100000 + Math.random() * 900000)
+  );
   const [showFailureModal, setShowFailureModal] = useState(false);
   const [stockErrorMessage, setStockErrorMessage] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
-  const [orderPlaced, setOrderPlaced] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [appliedPromotion, setAppliedPromotion] = useState(null);
-  const { profile, auth, refreshProfile } = useContext(AuthContext);
   const [addresses, setAddresses] = useState([]);
 
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [addressForm] = Form.useForm();
   const [addingAddress, setAddingAddress] = useState(false);
+  
+  const [productId, setProductId] = useState(null);
 
   // Mock shipping fee
   const shippingFee = 30000;
 
+
+  const fetchProductDetail = async () => {
+    const items = localStorage.getItem("selected-cart-items");
+    if (items.length <= 0) return;
+    try {
+
+      const productVariant = JSON.parse(items)[0].productVariantDTO;
+      const productVariantId = productVariant.id;
+      
+      const response = await apiClient.get(`/api/products/find-by-product-variant?productVariantId=${productVariantId}`);
+        const product = response.data.data;
+        setProductId(product);
+    } catch (error) {
+      console.error("Error fetching product by slug:", error);
+    }
+  }
+
+  useEffect(() => {
+    fetchProductDetail();
+  }, [])
+  
+  
   // Load cart data
   useEffect(() => {
     setLoading(true);
-    setTimeout(async () => {
+
+    // Load selected cart items
+    const loadCartItems = () => {
       const selectedCartItems = JSON.parse(
         localStorage.getItem("selected-cart-items") || "[]"
       );
+
       if (selectedCartItems.length === 0) {
         notification.warning({
           message: "Giỏ hàng trống",
@@ -81,88 +104,152 @@ const Checkout = () => {
             "Vui lòng thêm sản phẩm vào giỏ hàng trước khi thanh toán.",
         });
         navigate("/cart");
-        return;
+        return false;
       }
-      setCartItems(selectedCartItems);
 
-      const appliedPromotion = JSON.parse(
+      setCartItems(selectedCartItems);
+      return true;
+    };
+
+    // Load applied promotion
+    const loadPromotion = () => {
+      const promotion = JSON.parse(
         localStorage.getItem("applied-promotion") || "null"
       );
-      setAppliedPromotion(appliedPromotion);
+      setAppliedPromotion(promotion);
+    };
 
-      // Set default address
-      const addresses = profile.addressDTOs;
-      setAddresses(addresses);
-      const defaultAddress = addresses.find((addr) => addr.isDefault);
-      if (defaultAddress) {
-        setSelectedAddress(defaultAddress.id);
-      } else if (addresses.length > 0) {
-        setSelectedAddress(addresses[0].id);
+    // Simulate loading data
+    setTimeout(() => {
+      // Only proceed if we have cart items
+      if (loadCartItems()) {
+        loadPromotion();
+        loadPaymentMethods();
+
+        // Only load addresses if authenticated
+        if (keycloak.authenticated) {
+          loadUserAddresses();
+        }
       }
-
-      /// fetch payment method.
-      await apiClient
-        .get("/api/payment-methods?isActive=true")
-        .then((response) => {
-          const methods = response.data.data.methods;
-          setPaymentMethods(methods);
-
-          // Set default payment method if available
-          if (methods.length > 0) {
-            setPaymentMethodCode(methods[0].code);
-          }
-        })
-        .catch((error) => {
-          console.log(error);
-        });
 
       setLoading(false);
     }, 1000);
-  }, [auth, profile]);
+  }, [navigate]);
 
+  // Load payment methods
+  const loadPaymentMethods = async () => {
+    try {
+      const response = await apiClient.post("/api/payment-methods/search", {});
+
+      const methods = response.data.data.paymentMethods || [];
+
+      setPaymentMethods(methods);
+
+      // Set default payment method
+      if (methods.length > 0) {
+        setPaymentMethodId(methods[0].id);
+      }
+    } catch (error) {
+      console.log("Error loading payment methods:", error);
+    }
+  };
+
+  // Load user addresses
+  const loadUserAddresses = async () => {
+    try {
+      // In a real app, this would be an API call
+      const response = await apiClient.get("/api/addresses");
+      const addresses = response.data.data || [];
+
+      setAddresses(addresses);
+
+      // Set default selected address
+      const defaultAddress =
+        addresses.find((addr) => addr.isDefault) || addresses[0];
+      if (defaultAddress) {
+        setSelectedAddress(defaultAddress.id);
+      }
+    } catch (error) {
+      console.error("Lỗi khi lấy địa chỉ:", error);
+
+      // Use mock data if API fails
+      const mockAddresses = [
+        {
+          id: 1,
+          fullName: "Nguyễn Văn A",
+          phone: "0901234567",
+          address: "123 Đường Lê Lợi, Quận 1, TP. Hồ Chí Minh",
+          isDefault: true,
+        },
+        {
+          id: 2,
+          fullName: "Nguyễn Văn A",
+          phone: "0909876543",
+          address: "456 Đường Nguyễn Huệ, Quận 3, TP. Hồ Chí Minh",
+          isDefault: false,
+        },
+      ];
+
+      setAddresses(mockAddresses);
+      setSelectedAddress(mockAddresses[0].id);
+    }
+  };
+
+  // Add new address
   const handleAddAddress = async (values) => {
     setAddingAddress(true);
+
     try {
       const payload = {
-        userId: profile.id,
         fullName: values.fullName,
         phone: values.phone,
         address: values.address,
         isDefault: values.isDefault || false,
       };
 
-      const response = await apiClient.post("/api/users/addresses", payload);
+      // In a real app, this would be an API call
+      // Simulate API call with timeout
+      setTimeout(() => {
+        // Create a new address with a unique ID
+        const newAddress = {
+          ...payload,
+          id: addresses.length + 1,
+        };
 
-      if (response.data) {
-        // Refresh profile để cập nhật địa chỉ mới
-        await refreshProfile();
+        // Update addresses list
+        const updatedAddresses = [...addresses];
 
+        // If this is the default address, remove default from others
+        if (newAddress.isDefault) {
+          updatedAddresses.forEach((addr) => {
+            addr.isDefault = false;
+          });
+        }
+
+        updatedAddresses.push(newAddress);
+        setAddresses(updatedAddresses);
+
+        // Select the new address
+        setSelectedAddress(newAddress.id);
+
+        // Show success notification
         notification.success({
           message: "Thêm địa chỉ thành công",
           description:
             "Địa chỉ mới đã được thêm vào danh sách địa chỉ của bạn.",
         });
 
-        // Cập nhật danh sách địa chỉ từ context
-        setAddresses(profile.addressDTOs);
-
-        // Chọn địa chỉ mới
-        const newAddress = response.data.data;
-        setSelectedAddress(newAddress.id);
-
-        // Đóng modal và reset form
+        // Close modal and reset form
         setShowAddressModal(false);
         addressForm.resetFields();
-      }
+        setAddingAddress(false);
+      }, 500);
     } catch (error) {
       console.error("Lỗi khi thêm địa chỉ:", error);
       notification.error({
         message: "Thêm địa chỉ thất bại",
-        description:
-          error.response?.data?.message ||
-          "Đã xảy ra lỗi khi thêm địa chỉ mới.",
+        description: "Đã xảy ra lỗi khi thêm địa chỉ mới.",
       });
-    } finally {
       setAddingAddress(false);
     }
   };
@@ -179,13 +266,15 @@ const Checkout = () => {
   const calculateDiscount = () => {
     if (!appliedPromotion) return 0;
     const subtotal = calculateSubtotal();
+
     if (appliedPromotion.type === "percentage") {
       return (subtotal * appliedPromotion.discountValue) / 100;
     } else if (appliedPromotion.type === "fixed") {
       return appliedPromotion.discountValue;
     } else if (appliedPromotion.type === "shipping") {
-      return appliedPromotion.discountValue;
+      return shippingFee;
     }
+
     return 0;
   };
 
@@ -193,7 +282,8 @@ const Checkout = () => {
   const calculateTotal = () => {
     const subtotal = calculateSubtotal();
     const discount = calculateDiscount();
-    const shipping = shippingFee;
+    const shipping = appliedPromotion?.type === "shipping" ? 0 : shippingFee;
+
     return subtotal - discount + shipping;
   };
 
@@ -210,104 +300,148 @@ const Checkout = () => {
     setSelectedAddress(addressId);
   };
 
-  // Handle form submission
+  // Form submission handler
   const handleSubmit = async (values) => {
     if (currentStep === 0) {
+      // Validate shipping address
+      if (!selectedAddress) {
+        notification.error({
+          message: "Vui lòng chọn địa chỉ giao hàng",
+          description: "Bạn cần chọn địa chỉ giao hàng trước khi tiếp tục.",
+        });
+        return;
+      }
+
       // Move to payment step
       setCurrentStep(1);
       window.scrollTo(0, 0);
     } else if (currentStep === 1) {
-      // Submit payment
+      // Validate payment method
+      if (!paymentMethodId) {
+        notification.error({
+          message: "Vui lòng chọn phương thức thanh toán",
+          description:
+            "Bạn cần chọn phương thức thanh toán trước khi đặt hàng.",
+        });
+        return;
+      }
+
+      // Handle payment based on selected method
       if (isPaymentMethodType("e_wallet")) {
         setShowQRModal(true);
       } else {
-        await processPayment();
+        simulatePaymentProcessing();
       }
     }
   };
 
+  // Get selected payment method
   const getSelectedPaymentMethod = () => {
-    return paymentMethods.find((method) => method.code === paymentMethodCode);
+    return paymentMethods.find((method) => method.id === paymentMethodId);
   };
-  // Add function to check if payment method is of a specific type
+
+  // Check payment method type
   const isPaymentMethodType = (type) => {
     const method = getSelectedPaymentMethod();
     return method && method.type === type;
   };
 
-  const processPayment = async () => {
-    setPaymentProcessing(true);
+  // Hàm gọi API để đặt hàng
+  const placeOrder = async () => {
     try {
+      setPaymentProcessing(true);
+
       const selectedAddressInfo = getSelectedAddressInfo();
-      const selectedPaymentMethod = getSelectedPaymentMethod();
-      if (!selectedPaymentMethod) {
-        throw new Error("Phương thức thanh toán không hợp lệ.");
+      if (!selectedAddressInfo) {
+        notification.error({
+          message: "Địa chỉ không hợp lệ",
+          description: "Vui lòng chọn địa chỉ giao hàng hợp lệ.",
+        });
+        setPaymentProcessing(false);
+        return;
       }
 
-      // Calculate financial values
-      const subTotal = calculateSubtotal();
-      const discount = calculateDiscount();
-      const total = calculateTotal();
-
-      // Create order items with price and total
-      const orderItems = cartItems.map((item) => ({
-        productVariantId: item.productVariantDTO.id,
-        quantity: item.quantity,
-        price: item.productVariantDTO.price,
-        total: item.productVariantDTO.price * item.quantity,
-      }));
-
-      // Format the request payload to match OrderDTO
+      // Chuẩn bị dữ liệu đơn hàng
       const orderPayload = {
-        accountId: auth.accountId,
         shippingAddressId: selectedAddressInfo.id,
-        subTotal: subTotal,
-        discount: discount,
-        total: total,
-        paymentMethodId: selectedPaymentMethod.paymentMethodId,
-        promotionId: appliedPromotion ? appliedPromotion.id : null,
+        subtotal: calculateSubtotal(),
+        discount: calculateDiscount(),
+        total: calculateTotal(),
+        paymentMethodId: getSelectedPaymentMethod().id,
+        promotionId: appliedPromotion?.id || null,
+        currency: "VND",
         note: form.getFieldValue("note") || "",
-        currency: "vnd",
-        orderItemDTOs: orderItems,
+        orderItemDtos: cartItems.map((item) => ({
+          productVariantId: item.productVariantDTO.id,
+          quantity: item.quantity,
+          price: item.productVariantDTO.price,
+          total: item.productVariantDTO.price * item.quantity,
+        })),
+        productId: productId
       };
 
-      console.log("Sending order payload:", orderPayload);
-      const response = await apiClient.post(`/api/orders`, orderPayload);
+      // Gọi API đặt hàng
+      const response = await apiClient.post("/api/orders", orderPayload);
 
-      // After successful order creation
-      localStorage.removeItem("selected-cart-items");
-      localStorage.removeItem("applied-promotion");
+      // Xử lý kết quả
+      // Cập nhật orderId từ response nếu có
+      if (response.data.data?.orderId) {
+        setOrderId(response.data.data.orderId);
+      } else {
+        setOrderId("ORD" + Math.floor(100000 + Math.random() * 900000));
+      }
 
-      setPaymentProcessing(false);
       setShowQRModal(false);
-      setOrderPlaced(true);
       setShowSuccessModal(true);
-      setOrderId(response.data.data.orderId || response.data.orderId || "N/A");
+      setShowFailureModal(false);
 
       notification.success({
         message: "Đặt hàng thành công",
         description: `Cảm ơn bạn đã mua sắm tại Shop! Vui lòng kiểm tra email để biết thêm chi tiết.`,
       });
-    } catch (error) {
-      setPaymentProcessing(false);
-      setShowQRModal(false);
-      console.log("Payment processing error:", error);
 
-      if (error.response?.data?.data?.errorMsg?.includes("Not enough stock")) {
-        // Set stock-specific error message
+      return true;
+    } catch (error) {
+      console.error("Lỗi khi đặt hàng:", error);
+
+      setShowSuccessModal(false);
+
+      // Xử lý lỗi cụ thể
+      if (
+        error.response?.data?.message?.includes("không đủ số lượng trong kho")
+      ) {
         setStockErrorMessage(
-          `Sản phẩm trong giỏ hàng của bạn hiện không đủ số lượng trong kho.`
+          "Sản phẩm trong giỏ hàng của bạn hiện không đủ số lượng trong kho."
+        );
+      } else {
+        setStockErrorMessage(
+          error.response?.data?.message || "Có lỗi xảy ra khi xử lý đơn hàng."
         );
       }
+
       setShowFailureModal(true);
+      return false;
+    } finally {
+      setPaymentProcessing(false);
     }
   };
 
-  // Get selected address
+  const simulatePaymentProcessing = async () => {
+    // Reset modals
+    setShowSuccessModal(false);
+    setShowFailureModal(false);
+    setStockErrorMessage("");
+    setPaymentProcessing(true);
+
+    // Gọi API để đặt hàng
+    await placeOrder();
+  };
+
+  // Get selected address info
   const getSelectedAddressInfo = () => {
+    if (!selectedAddress || addresses.length === 0) return null;
     const address = addresses.find((addr) => addr.id === selectedAddress);
-    if (!address) return null;
-    return address;
+    return address || null;
   };
 
   return (
@@ -364,11 +498,12 @@ const Checkout = () => {
                             onChange={(e) =>
                               handleAddressSelect(e.target.value)
                             }
+                            value={selectedAddress}
                           >
                             <Space
                               direction="vertical"
                               className="w-full"
-                              size={30}
+                              size={16}
                             >
                               {addresses.map((address) => (
                                 <Radio.Button
@@ -376,13 +511,13 @@ const Checkout = () => {
                                   value={address.id}
                                   className="w-full h-auto p-4 text-left flex"
                                 >
-                                  <div>
+                                  <div className="w-full">
                                     <div className="flex justify-between">
                                       <div className="font-medium">
                                         {address.fullName}
                                       </div>
                                       {address.isDefault && (
-                                        <p className="font-semibold">
+                                        <p className="font-semibold text-indigo-600">
                                           Mặc định
                                         </p>
                                       )}
@@ -390,7 +525,7 @@ const Checkout = () => {
                                         {address.phone}
                                       </div>
                                     </div>
-                                    <div className="text-gray-600">
+                                    <div className="text-gray-600 mt-1">
                                       {address.address}
                                     </div>
                                   </div>
@@ -456,21 +591,22 @@ const Checkout = () => {
                     <Form form={form} layout="vertical" onFinish={handleSubmit}>
                       <Form.Item name="payment_method" className="mb-6">
                         <Radio.Group
-                          onChange={(e) => setPaymentMethodCode(e.target.value)}
-                          value={paymentMethodCode}
+                          onChange={(e) => setPaymentMethodId(e.target.value)}
+                          value={paymentMethodId}
                           className="w-full space-y-4"
                         >
                           {paymentMethods.map((method) => (
                             <Radio.Button
                               key={method.paymentMethodId}
-                              value={method.code}
+                              value={method.id}
                               className="flex items-center h-auto p-4 w-full text-left mb-2"
                               style={{
                                 borderRadius: "8px",
-                                height: "40px",
+                                height: "auto",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "flex-start",
+                                marginBottom: "16px",
                               }}
                             >
                               <div className="flex items-center">
@@ -684,7 +820,7 @@ const Checkout = () => {
 
                 <Divider />
 
-                {selectedAddress && (
+                {selectedAddress && getSelectedAddressInfo() && (
                   <div className="mb-4">
                     <div className="flex justify-between mb-2">
                       <Text strong>Giao tới:</Text>
@@ -698,17 +834,13 @@ const Checkout = () => {
                       </Button>
                     </div>
                     <div className="bg-gray-50 p-3 rounded">
-                      {getSelectedAddressInfo() && (
-                        <>
-                          <div className="font-medium">
-                            {getSelectedAddressInfo().fullName} |{" "}
-                            {getSelectedAddressInfo().phone}
-                          </div>
-                          <div className="text-gray-600 text-sm mt-1">
-                            {getSelectedAddressInfo().address}
-                          </div>
-                        </>
-                      )}
+                      <div className="font-medium">
+                        {getSelectedAddressInfo().fullName} |{" "}
+                        {getSelectedAddressInfo().phone}
+                      </div>
+                      <div className="text-gray-600 text-sm mt-1">
+                        {getSelectedAddressInfo().address}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -773,7 +905,7 @@ const Checkout = () => {
             key="submit"
             type="primary"
             loading={paymentProcessing}
-            onClick={processPayment}
+            onClick={simulatePaymentProcessing}
             className="bg-indigo-600 hover:bg-indigo-700"
           >
             Đã thanh toán
@@ -786,7 +918,7 @@ const Checkout = () => {
             <QRCodeSVG
               value={`https://payment.example.com/${
                 getSelectedPaymentMethod()?.provider?.toLowerCase() || "wallet"
-              }/checkout?amount=${calculateTotal()}&orderId=ORDER123456`}
+              }/checkout?amount=${calculateTotal()}&orderId=${orderId}`}
               size={200}
               level="H"
               className="mx-auto"
@@ -841,7 +973,7 @@ const Checkout = () => {
         />
       </Modal>
 
-      {/* Failure Modal  */}
+      {/* Failure Modal */}
       <Modal
         open={showFailureModal}
         footer={null}
@@ -884,6 +1016,8 @@ const Checkout = () => {
           ]}
         />
       </Modal>
+
+      {/* Add Address Modal */}
       <Modal
         title="Thêm địa chỉ mới"
         open={showAddressModal}

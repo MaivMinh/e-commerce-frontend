@@ -51,10 +51,8 @@ const Cart = () => {
         try {
           const response = await apiClient.get(`/api/carts/cart-items`);
           setCartItems(response.data.data.items || []);
-          console.log(response.data.data.items);
           setSelectedItems(response.data.data.items.map((item) => item.id));
         } catch (error) {
-          console.error("Failed to fetch cart items:", error);
           notification.error({
             message: "Lỗi",
             description: "Không thể tải giỏ hàng. Vui lòng thử lại sau.",
@@ -70,8 +68,8 @@ const Cart = () => {
   useEffect(() => {
     const fetchPromotions = async () => {
       try {
-        const response = await apiClient.get("/api/promotions/all");
-        setPromotions(response.data.data|| []);
+        const response = await apiClient.get("/api/promotions");
+        setPromotions(response.data.data.promotions|| []);
       } catch (error) {
         console.error("Failed to fetch promotions:", error);
       }

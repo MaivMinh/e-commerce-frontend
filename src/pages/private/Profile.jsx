@@ -31,14 +31,13 @@ import {
 import moment from "moment";
 import apiClient from "../../services/apiClient";
 import dayjs from "dayjs";
-import { AuthContext } from "../../context/AuthContext";
+import { keycloak } from "../../services/keycloak";
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
 
 const Profile = () => {
-  const { refreshProfile, auth } = useContext(AuthContext);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileForm] = Form.useForm();
@@ -56,7 +55,22 @@ const Profile = () => {
   const [previewImage, setPreviewImage] = useState("");
   const fileInputRef = useRef(null);
   const [avatarToBeRemoved, setAvatarToBeRemoved] = useState(false);
+  const [addresses, setAddresses] = useState([]);
 
+  useEffect(() => {
+    const getAddresses = async () => {
+      try {
+        const response = await apiClient.get("/api/addresses");
+        setAddresses(response.data.data);
+      } catch (error) {
+        console.error("Error fetching addresses:", error);
+      }
+    };
+    if (keycloak.authenticated) {
+      getAddresses();
+    }
+  }, [])
+  
   useEffect(() => {
     fetchUserProfile();
   }, []);
@@ -90,6 +104,15 @@ const Profile = () => {
       setLoading(false);
     }
   };
+
+  const fetchUserAddresses = async () => {
+    try {
+      const response = await apiClient.get("/api/addresses");
+      setAddresses(response.data.data);
+    } catch (error) {
+      console.error("Error fetching addresses:", error);
+    }
+  }
 
   const handleAvatarClick = () => {
     fileInputRef.current.click();
@@ -262,64 +285,15 @@ const Profile = () => {
       // Reset trạng thái xóa avatar
       setAvatarToBeRemoved(false);
 
-      // Làm mới thông tin profile từ AuthContext
-      refreshProfile();
-
       // Tải lại thông tin profile cho component này
       fetchUserProfile();
+      fetchUserAddresses();
       message.success("Cập nhật thông tin thành công");
     } catch (error) {
       console.error("Error updating profile:", error);
       message.error("Cập nhật thông tin thất bại");
     } finally {
       setSavingProfile(false);
-    }
-  };
-
-  const handlePasswordChange = async (values) => {
-    setSavingPassword(true);
-    try {
-      // Chuẩn bị payload theo đúng cấu trúc ChangePasswordDTO
-      const payload = {
-        accountId: auth.accountId,
-        oldPassword: values.currentPassword,
-        newPassword: values.newPassword,
-        confirmNewPassword: values.confirmPassword,
-      };
-
-      if (payload.newPassword !== payload.confirmNewPassword) {
-        message.error("Mật khẩu mới và xác nhận mật khẩu không khớp");
-        return;
-      }
-
-      // Gọi API đổi mật khẩu
-      await apiClient.post("/api/auth/change-password", payload);
-
-      // Hiển thị thông báo thành công
-      message.success("Đổi mật khẩu thành công");
-
-      // Reset form sau khi đổi mật khẩu thành công
-      passwordForm.resetFields();
-    } catch (error) {
-      console.error("Error changing password:", error);
-
-      // Xử lý các loại lỗi phổ biến
-      if (error.response) {
-        if (error.response.status === 401) {
-          message.error("Mật khẩu hiện tại không chính xác");
-        } else if (error.response.status === 400) {
-          message.error(
-            error.response.data.message ||
-              "Mật khẩu mới và xác nhận mật khẩu không khớp"
-          );
-        } else {
-          message.error(error.response.data.message || "Đổi mật khẩu thất bại");
-        }
-      } else {
-        message.error("Đổi mật khẩu thất bại. Vui lòng thử lại sau.");
-      }
-    } finally {
-      setSavingPassword(false);
     }
   };
 
@@ -350,34 +324,31 @@ const Profile = () => {
         // Cập nhật địa chỉ hiện có
         const payload = {
           id: editingAddress.id,
-          userId: userProfile.id,
+          username: editingAddress.username,
           fullName: values.fullName,
           phone: values.phone,
           address: values.address,
           isDefault: values.isDefault,
         };
 
-        await apiClient.put(`/api/users/addresses`, payload);
+        await apiClient.put(`/api/addresses`, payload);
         message.success("Cập nhật địa chỉ thành công");
       } else {
         // Thêm địa chỉ mới
         const payload = {
-          userId: userProfile.id,
           fullName: values.fullName,
           phone: values.phone,
           address: values.address,
           isDefault: values.isDefault,
         };
 
-        await apiClient.post("/api/users/addresses", payload);
+        await apiClient.post("/api/addresses", payload);
         message.success("Thêm địa chỉ mới thành công");
       }
 
-      // Làm mới thông tin profile từ AuthContext
-      refreshProfile();
-
       // Tải lại thông tin profile cho component này
       await fetchUserProfile();
+      await fetchUserAddresses();
 
       setIsAddressModalVisible(false);
     } catch (error) {
@@ -391,7 +362,7 @@ const Profile = () => {
   const handleSetDefaultAddress = async (addressId) => {
     try {
       // Lấy thông tin địa chỉ từ state
-      const addressToSetDefault = userProfile.addressDTOs.find(
+      const addressToSetDefault = addresses.find(
         (addr) => addr.id === addressId
       );
 
@@ -401,16 +372,11 @@ const Profile = () => {
       }
 
       // Gửi request cập nhật địa chỉ mặc định
-      await apiClient.put("/api/users/addresses", {
-        ...addressToSetDefault,
-        isDefault: true,
-      });
-
-      // Làm mới thông tin profile từ AuthContext
-      refreshProfile();
+      await apiClient.patch(`/api/addresses/${addressId}/set-as-default`, {});
 
       // Tải lại thông tin profile cho component này
       await fetchUserProfile();
+      await fetchUserAddresses();
 
       message.success("Đã đặt làm địa chỉ mặc định");
     } catch (error) {
@@ -421,13 +387,11 @@ const Profile = () => {
 
   const handleDeleteAddress = async (addressId) => {
     try {
-      await apiClient.delete(`/api/users/addresses/${addressId}`);
-
-      // Làm mới thông tin profile từ AuthContext
-      refreshProfile();
+      await apiClient.delete(`/api/addresses/${addressId}`);
 
       // Tải lại thông tin profile cho component này
       await fetchUserProfile();
+      await fetchUserAddresses();
 
       message.success("Xóa địa chỉ thành công");
     } catch (error) {
@@ -630,90 +594,8 @@ const Profile = () => {
                 <TabPane
                   tab={
                     <span className="flex items-center">
-                      <LockOutlined className="mr-2" />
-                      Đổi mật khẩu
-                    </span>
-                  }
-                  key="password"
-                >
-                  <Form
-                    form={passwordForm}
-                    layout="vertical"
-                    onFinish={handlePasswordChange}
-                    className="max-w-lg"
-                  >
-                    <Form.Item
-                      name="currentPassword"
-                      label="Mật khẩu hiện tại"
-                      rules={[
-                        {
-                          required: true,
-                          message: "Vui lòng nhập mật khẩu hiện tại",
-                        },
-                      ]}
-                    >
-                      <Input.Password />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="newPassword"
-                      label="Mật khẩu mới"
-                      rules={[
-                        {
-                          required: true,
-                          message: "Vui lòng nhập mật khẩu mới",
-                        },
-                        { min: 8, message: "Mật khẩu phải có ít nhất 8 ký tự" },
-                      ]}
-                    >
-                      <Input.Password />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="confirmPassword"
-                      label="Xác nhận mật khẩu mới"
-                      dependencies={["newPassword"]}
-                      rules={[
-                        {
-                          required: true,
-                          message: "Vui lòng xác nhận mật khẩu mới",
-                        },
-                        ({ getFieldValue }) => ({
-                          validator(_, value) {
-                            if (
-                              !value ||
-                              getFieldValue("newPassword") === value
-                            ) {
-                              return Promise.resolve();
-                            }
-                            return Promise.reject(
-                              new Error("Mật khẩu xác nhận không khớp")
-                            );
-                          },
-                        }),
-                      ]}
-                    >
-                      <Input.Password />
-                    </Form.Item>
-
-                    <Form.Item>
-                      <Button
-                        type="primary"
-                        htmlType="submit"
-                        loading={savingPassword}
-                        className="bg-indigo-600 hover:bg-indigo-700"
-                      >
-                        Đổi mật khẩu
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                </TabPane>
-
-                <TabPane
-                  tab={
-                    <span className="flex items-center">
                       <EnvironmentOutlined className="mr-2" />
-                      Địa chỉ giao hàng
+                      Địa chỉ khách hàng
                     </span>
                   }
                   key="addresses"
@@ -732,11 +614,11 @@ const Profile = () => {
                     </Button>
                   </div>
 
-                  {userProfile.addressDTOs &&
-                  userProfile.addressDTOs.length > 0 ? (
+                  {addresses &&
+                  addresses.length > 0 ? (
                     <List
                       itemLayout="vertical"
-                      dataSource={userProfile.addressDTOs}
+                      dataSource={addresses}
                       renderItem={(address) => (
                         <List.Item
                           key={address.id}
@@ -895,7 +777,7 @@ const Profile = () => {
             />
           </Form.Item>
 
-          <Form.Item name="isDefault" valuePropName="checked">
+          <Form.Item name="isDefault">
             <Radio.Group>
               <Radio value={true}>Đặt làm địa chỉ mặc định</Radio>
               <Radio value={false}>Địa chỉ thông thường</Radio>

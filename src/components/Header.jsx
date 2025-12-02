@@ -133,7 +133,7 @@ const Header = () => {
     if (value.trim() === "") {
       return;
     }
-    navigate(`/search?query=${encodeURIComponent(value)}`);
+    navigate(`/search?keyword=${encodeURIComponent(value)}`);
   };
 
   // Xóa kết quả tìm kiếm khi component unmount
@@ -258,6 +258,18 @@ const Header = () => {
                 >
                   Nữ
                 </Link>
+                <Link
+                  to="/products?"
+                  className="text-gray-700 hover:text-indigo-600 font-medium text-base transition-colors"
+                >
+                  Tất cả
+                </Link>
+                <Link
+                  to="/events"
+                  className="text-gray-700 hover:text-indigo-600 font-medium text-base transition-colors"
+                >
+                  Sự kiện
+                </Link>
               </nav>
             </div>
 
@@ -290,7 +302,7 @@ const Header = () => {
               </div>
 
               {/* User/Cart Icons */}
-              {authenticated ? (
+              {authenticated && (
                 <div className="flex items-center gap-x-3">
                   <Dropdown
                     menu={{ items: userMenuItems }}
@@ -339,19 +351,6 @@ const Header = () => {
                     />
                   </Tooltip>
                 </div>
-              ) : (
-                <Button
-                  onClick={login}
-                  type="primary"
-                  style={{
-                    backgroundColor: "#4F46E5",
-                    fontWeight: "bold",
-                  }}
-                  className="text-[#F5F5F5]"
-                  icon={<LoginOutlined />}
-                >
-                  Đăng nhập
-                </Button>
               )}
             </div>
           </div>

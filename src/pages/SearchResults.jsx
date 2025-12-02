@@ -66,10 +66,10 @@ const SearchResults = () => {
         }
 
         // Tạo URL với các tham số tìm kiếm
-        const url = `/api/products/search?name=${encodeURIComponent(query)}&page=${currentPage - 1}&size=${pageSize}${sortParam ? `&sort=${sortParam}` : ''}`;
+        const url = `/api/products/search-by-keyword?keyword=${encodeURIComponent(query)}&page=${currentPage}&size=${pageSize}`;
         
         // Gọi API search
-        const response = await apiClient.post(url);
+        const response = await apiClient.get(url);
         
         if (response.data && response.data.data) {
           setProducts(response.data.data.products || []);
