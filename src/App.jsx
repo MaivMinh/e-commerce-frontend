@@ -21,6 +21,7 @@ import Profile from "./pages/private/Profile";
 import { KeycloakProvider } from "./components/KeycloakProvider";
 import EventList from "./pages/private/EventList";
 import EventDetail from "./pages/private/EventDetail";
+import PlayGame from "./pages/PlayGame";
 
 function App() {
   return (
@@ -140,6 +141,14 @@ function App() {
                     <PrivateRoute>
                       <EventList />
                     </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/events/play/:eventId"
+                  element={
+                    <PublicRoute>
+                      <PlayGame />
+                    </PublicRoute>
                   }
                 />
                 <Route

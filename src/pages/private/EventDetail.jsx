@@ -107,15 +107,6 @@ const EventDetail = () => {
     const start = dayjs(campaign.startTime * 1000);
     const end = dayjs(campaign.endTime * 1000);
 
-    console.log("Debug canRegister:", {
-      now: now.format("DD/MM/YYYY HH:mm:ss"),
-      start: start.format("DD/MM/YYYY HH:mm:ss"),
-      end: end.format("DD/MM/YYYY HH:mm:ss"),
-      isAfterEnd: now.isAfter(end),
-      isAfterStart: now.isAfter(start),
-      minutesUntilStart: start.diff(now, "minute"),
-    });
-
     // Nếu sự kiện đã kết thúc
     if (now.isAfter(end)) {
       return false;
@@ -131,17 +122,30 @@ const EventDetail = () => {
     return minutesUntilStart > 5;
   };
 
-  // Get registration message - Cập nhật để xử lý isRegistered
-  const getRegistrationMessage = () => {
+  const canPlayGame = () => {
+    if (!campaign || !isRegistered) return false;
+
+    const now = dayjs();
+    // Chuyển đổi Unix timestamp (giây) sang milliseconds
+    const start = dayjs(campaign.startTime * 1000);
+    const end = dayjs(campaign.endTime * 1000);
+
+    if (now.isAfter(end)) {
+      return false;
+    }
+
+    // Chỉ cho phép chơi nếu sự kiện đã bắt đầu hoặc trong vòng 5 phút trước khi bắt đầu
+    const minutesUntilStart = start.diff(now, "minute");
+    return true;
+  };
+
+  const getPlayGameStatus = () => {
     if (!campaign) return null;
 
-    // Nếu đã đăng ký rồi
-    if (isRegistered) {
+    if (!isRegistered) {
       return {
-        disabled: true,
-        text: "Đã đăng ký",
-        type: "success",
-        showAlert: false,
+        canPlay: false,
+        message: "Bạn cần đăng ký trước khi tham gia",
       };
     }
 
@@ -149,11 +153,65 @@ const EventDetail = () => {
     const start = dayjs(campaign.startTime * 1000);
     const end = dayjs(campaign.endTime * 1000);
 
+    if (now.isAfter(end)) {
+      return {
+        canPlay: false,
+        message: "Sự kiện đã kết thúc",
+      };
+    }
+
+    let minutesUntilStart = start.diff(now, "minute");
+
+    if (minutesUntilStart > 5) {
+      return {
+        canPlay: false,
+        message: `Trò chơi sẽ mở sau ${minutesUntilStart} phút`,
+      };
+    }
+
+    if (minutesUntilStart > 0) {
+      return {
+        canPlay: true,
+        message: `Trò chơi sắp bắt đầu! (${minutesUntilStart} phút nữa)`,
+        urgent: true,
+      };
+    }
+
+
+    return {
+      canPlay: true,
+      message: "Trò chơi đang diễn ra!",
+      active: true,
+    };
+  };
+
+  // Thêm hàm: Xử lý khi nhấn tham gia chơi
+  const handlePlayGame = () => {
+    if (!canPlayGame()) {
+      const playStatus = getPlayGameStatus();
+      messageApi.warning(playStatus?.message || "Chưa thể tham gia chơi");
+      return;
+    }
+
+    navigate(`/events/play/${eventId}`);
+  };
+
+  // Get registration message - Cập nhật để xử lý isRegistered
+  const getRegistrationMessage = () => {
+    if (!campaign) return null;
+
+    const now = dayjs();
+    const start = dayjs(campaign.startTime * 1000);
+    const end = dayjs(campaign.endTime * 1000);
+    const minutesUntilStart = start.diff(now, "minute");
+
     console.log("Debug getRegistrationMessage:", {
       now: now.format("DD/MM/YYYY HH:mm:ss"),
       start: start.format("DD/MM/YYYY HH:mm:ss"),
       end: end.format("DD/MM/YYYY HH:mm:ss"),
       isRegistered,
+      minutesUntilStart,
+      canPlayGame: canPlayGame(),
     });
 
     // Đã kết thúc
@@ -166,7 +224,28 @@ const EventDetail = () => {
       };
     }
 
-    // Đã bắt đầu
+    // Nếu đã đăng ký và có thể chơi game (trong vòng 5 phút hoặc đang diễn ra)
+    if (isRegistered && minutesUntilStart <= 5 && minutesUntilStart >= -9999) {
+      return {
+        disabled: false,
+        text: "THAM GIA CHƠI NGAY",
+        type: "primary",
+        showAlert: false,
+        isPlayButton: true,
+      };
+    }
+
+    // Nếu đã đăng ký rồi nhưng chưa đến giờ chơi
+    if (isRegistered) {
+      return {
+        disabled: true,
+        text: "Đã đăng ký",
+        type: "success",
+        showAlert: false,
+      };
+    }
+
+    // Đã bắt đầu nhưng chưa đăng ký
     if (now.isAfter(start)) {
       return {
         disabled: true,
@@ -177,8 +256,6 @@ const EventDetail = () => {
     }
 
     // Kiểm tra thời gian còn lại
-    const minutesUntilStart = start.diff(now, "minute");
-
     if (minutesUntilStart <= 5) {
       return {
         disabled: true,
@@ -621,31 +698,54 @@ const EventDetail = () => {
               <div className="register-section py-6">
                 <div className="text-center mb-4">
                   <Title level={3} className="mb-2">
-                    🎮 Tham gia ngay!
+                    {registrationStatus?.isPlayButton
+                      ? "🎮 Tham gia chơi!"
+                      : "🎮 Tham gia ngay!"}
                   </Title>
                   <Paragraph className="text-gray-600 text-lg">
-                    Đăng ký để nhận voucher và tham gia trò chơi
+                    {registrationStatus?.isPlayButton
+                      ? "Trò chơi đã sẵn sàng! Nhấn nút để bắt đầu"
+                      : "Đăng ký để nhận voucher và tham gia trò chơi"}
                   </Paragraph>
+
                   {/* Warning message for time restriction */}
-                  {registrationStatus?.disabled && !isRegistered && (
+                  {registrationStatus?.disabled &&
+                    !isRegistered &&
+                    !registrationStatus?.isPlayButton && (
+                      <Alert
+                        message="Lưu ý về thời gian đăng ký"
+                        description="Bạn cần đăng ký trước 5 phút trước khi sự kiện bắt đầu"
+                        type="warning"
+                        showIcon
+                        className="mb-4"
+                        style={{
+                          backgroundColor: "rgba(255, 255, 255, 0.9)",
+                          border: "2px solid #faad14",
+                        }}
+                      />
+                    )}
+
+                  {/* Info message when ready to play */}
+                  {registrationStatus?.isPlayButton && (
                     <Alert
-                      message="Lưu ý về thời gian đăng ký"
-                      description="Bạn cần đăng ký trước 5 phút trước khi sự kiện bắt đầu"
-                      type="warning"
+                      message={getPlayGameStatus()?.message}
+                      description="Chúc bạn chơi game vui vẻ và giành được nhiều phần quà!"
+                      type="success"
                       showIcon
-                      className="mb-4"
-                      style={{
-                        backgroundColor: "rgba(255, 255, 255, 0.9)",
-                        border: "2px solid #faad14",
-                      }}
+                      icon={<TrophyOutlined />}
+                      className="mb-4 play-ready-alert"
                     />
                   )}
                 </div>
 
-                {isRegistered ? (
+                {isRegistered && !registrationStatus?.isPlayButton ? (
                   <Alert
                     message="Bạn đã đăng ký tham gia sự kiện này"
-                    description="Chúc bạn chơi game vui vẻ và may mắn!"
+                    description={
+                      canPlayGame()
+                        ? "Trò chơi sắp bắt đầu! Vui lòng đợi..."
+                        : `Chờ đợi trò chơi bắt đầu. Bạn có thể tham gia chơi trong vòng 5 phút trước khi sự kiện diễn ra.`
+                    }
                     type="success"
                     showIcon
                     icon={<CheckCircleOutlined />}
@@ -657,9 +757,17 @@ const EventDetail = () => {
                     size="large"
                     icon={<TrophyOutlined />}
                     loading={isRegistering}
-                    onClick={handleRegisterEvent}
+                    onClick={
+                      registrationStatus?.isPlayButton
+                        ? handlePlayGame
+                        : handleRegisterEvent
+                    }
                     disabled={registrationStatus?.disabled}
-                    className="register-button"
+                    className={
+                      registrationStatus?.isPlayButton
+                        ? "play-button"
+                        : "register-button"
+                    }
                     block
                   >
                     {registrationStatus?.text}
@@ -839,7 +947,36 @@ const EventDetail = () => {
           overflow: hidden;
         }
 
-        .register-button::before {
+        .play-button {
+          height: 60px !important;
+          font-size: 18px !important;
+          font-weight: bold !important;
+          letter-spacing: 1px;
+          background: linear-gradient(
+            90deg,
+            #11998e 0%,
+            #38ef7d 100%
+          ) !important;
+          border: none !important;
+          box-shadow: 0 8px 20px rgba(56, 239, 125, 0.4) !important;
+          transition: all 0.3s ease !important;
+          position: relative;
+          overflow: hidden;
+          animation: playPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes playPulse {
+          0%,
+          100% {
+            box-shadow: 0 8px 20px rgba(56, 239, 125, 0.4);
+          }
+          50% {
+            box-shadow: 0 12px 28px rgba(56, 239, 125, 0.8);
+          }
+        }
+
+        .register-button::before,
+        .play-button::before {
           content: "";
           position: absolute;
           top: 0;
@@ -855,20 +992,31 @@ const EventDetail = () => {
           transition: left 0.5s;
         }
 
-        .register-button:hover::before {
+        .register-button:hover::before,
+        .play-button:hover::before {
           left: 100%;
         }
 
-        .register-button:hover:not(:disabled) {
+        .register-button:hover:not(:disabled),
+        .play-button:hover:not(:disabled) {
           transform: translateY(-3px) !important;
+        }
+
+        .register-button:hover:not(:disabled) {
           box-shadow: 0 12px 28px rgba(245, 87, 108, 0.6) !important;
         }
 
-        .register-button:active:not(:disabled) {
+        .play-button:hover:not(:disabled) {
+          box-shadow: 0 12px 28px rgba(56, 239, 125, 0.8) !important;
+        }
+
+        .register-button:active:not(:disabled),
+        .play-button:active:not(:disabled) {
           transform: translateY(-1px) !important;
         }
 
-        .register-button:disabled {
+        .register-button:disabled,
+        .play-button:disabled {
           background: linear-gradient(
             90deg,
             #d9d9d9 0%,
@@ -877,6 +1025,7 @@ const EventDetail = () => {
           box-shadow: none !important;
           cursor: not-allowed;
           opacity: 0.7;
+          animation: none;
         }
 
         .register-success-alert {
@@ -889,6 +1038,18 @@ const EventDetail = () => {
             #38f9d7 100%
           ) !important;
           border: none !important;
+          animation: slideIn 0.5s ease-out;
+        }
+
+        .play-ready-alert {
+          border-radius: 12px !important;
+          padding: 16px !important;
+          background: linear-gradient(
+            135deg,
+            #ffeaa7 0%,
+            #fdcb6e 100%
+          ) !important;
+          border: 2px solid #f39c12 !important;
           animation: slideIn 0.5s ease-out;
         }
 
@@ -913,11 +1074,13 @@ const EventDetail = () => {
           }
         }
 
-        .register-button:not(:disabled) .anticon {
+        .register-button:not(:disabled) .anticon,
+        .play-button:not(:disabled) .anticon {
           animation: bounce 2s ease-in-out infinite;
         }
 
-        .register-button:active::after {
+        .register-button:active::after,
+        .play-button:active::after {
           width: 300px;
           height: 300px;
           opacity: 0;
