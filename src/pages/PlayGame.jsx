@@ -41,6 +41,7 @@ const PlayGame = () => {
   // Game states
   const [gameState, setGameState] = useState("CONNECTING");
   const [currentQuestion, setCurrentQuestion] = useState(null);
+  const [currentAnswers, setCurrentAnswers] = useState([]);
   const [questionNumber, setQuestionNumber] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
@@ -49,8 +50,8 @@ const PlayGame = () => {
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [gameResult, setGameResult] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("CONNECTING");
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [participants, setParticipants] = useState(0);
+  const { username } = useContext(KeycloakContext);
 
   // WebSocket connection
   const connectWebSocket = () => {
@@ -68,9 +69,6 @@ const PlayGame = () => {
         console.log("✅ WebSocket connected successfully");
         setConnectionStatus("CONNECTED");
         setGameState("WAITING");
-        setReconnectAttempts(0);
-
-        messageApi.success("Đã kết nối thành công!");
 
         // Send join event message
         sendMessage({
@@ -121,73 +119,68 @@ const PlayGame = () => {
   // Handle incoming WebSocket messages
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = (data) => {
-    console.log("received data from server: ", data);
-    console.log("🔄 Handling message type:", data.type);
+    console.log("Received data from server: ", data);
+    const payload = data.payload || {};
 
     switch (data.type) {
       case "CONNECTED":
-        console.log("✅ Received CONNECTED message:", data.message);
         messageApi.info(data.message || "Connected to server");
         break;
 
       case "GAME_READY":
-        /// READY TO START
-        console.log("🎲 Game is ready to start:", data.message);
+        messageApi.info(payload.description);
         break;
 
       case "GAME_START":
-        console.log("🎮 Game starting...");
-        setGameState("PLAYING");
-        setTotalQuestions(data.totalQuestions || 0);
+        setTotalQuestions(payload.totalQuestions || 0);
         setScore(0);
-        messageApi.success("Trò chơi bắt đầu!");
+        messageApi.info(payload.description || "Trò chơi sắp bắt đầu!");
         break;
 
       case "QUESTION":
-        console.log("❓ New question received:", data.question);
-        setCurrentQuestion(data.question);
-        setQuestionNumber(data.questionNumber || 0);
-        setTimeLeft(data.timeLimit || 30);
+        setGameState("PLAYING");
+        setCurrentQuestion(payload.question);
+        setCurrentAnswers(payload.answers || []);
+        console.log(payload.answers);
+        setQuestionNumber(payload.index + 1);
+        setTimeLeft(payload.timeLimit || 30);
         setSelectedAnswer(null);
         setIsAnswerSubmitted(false);
-        setGameState("PLAYING");
         break;
 
       case "SCORING":
-        console.log("🏆 Scoring update:", data);
+        messageApi.success(
+          payload.description || "Hệ thống đang thực hiện chấm điểm!"
+        );
         break;
 
       case "GAME_RESULT":
-        console.log("🏁 Game ended:", data.result);
+        console.log(payload);
         setGameState("FINISHED");
-        setGameResult(data.result);
-        Modal.success({
-          title: "🎉 Kết thúc trò chơi!",
-          content: (
-            <div>
-              <p>
-                Điểm số của bạn: <strong>{data.result?.score || score}</strong>
-              </p>
-              <p>
-                Xếp hạng: <strong>#{data.result?.rank || "N/A"}</strong>
-              </p>
-              {data.result?.voucher && (
-                <Alert
-                  message="Chúc mừng! Bạn đã nhận được voucher"
-                  description={`Mã voucher: ${data.result.voucher.code}`}
-                  type="success"
-                  showIcon
-                  className="mt-4"
-                />
-              )}
-            </div>
-          ),
-          onOk: () => navigate(`/events/${eventId}`),
+
+        const currentUser = payload.find((p) => p.username === username);
+        const currentIndex = payload.findIndex((p) => p.username === username);
+        const vouchers = data.vouchers || [];
+
+        const receivedVoucher = vouchers.find(
+          (voucher) => voucher.username === username
+        );
+        const finalScore = currentUser?.score ?? score;
+        const rank = currentIndex >= 0 ? currentIndex + 1 : "N/A";
+
+        setGameResult({
+          username: username,
+          correct: currentUser?.correct || 0,
+          incorrect: currentUser?.incorrect || 0,
+          score: finalScore,
+          rank: rank,
+          voucher: receivedVoucher ? receivedVoucher : null,
         });
         break;
 
-      case "PARTICIPANT_UPDATE":
-        console.log("👥 Participants updated:", data.count);
+      case "PLAYER_PARTICIPATED":
+        const playerUsername = payload.username || "Một người chơi";
+        messageApi.info(`👤 ${playerUsername} đã tham gia trò chơi`);
         setParticipants(data.count || 0);
         break;
 
@@ -217,12 +210,16 @@ const PlayGame = () => {
 
     setSelectedAnswer(answerId);
     setIsAnswerSubmitted(true);
+    const correct =
+      currentAnswers.find((ans) => ans.id === answerId)?.correct || false;
 
     sendMessage({
-      type: "SUBMIT_ANSWER",
+      type: "PLAYER_ANSWER",
       eventId: eventId,
       questionId: currentQuestion?.id,
-      answerId: answerId,
+      clientTime: Date.now(),
+      isCorrect: correct,
+      username: username,
     });
   };
 
@@ -378,7 +375,7 @@ const PlayGame = () => {
           {/* Question */}
           <Card className="mb-4 shadow-lg">
             <Title level={3} className="text-center mb-6">
-              {currentQuestion.questionText}
+              {currentQuestion.content}
             </Title>
 
             {/* Question Image */}
@@ -394,7 +391,7 @@ const PlayGame = () => {
 
             {/* Answers */}
             <Row gutter={[16, 16]}>
-              {currentQuestion.answers?.map((answer, index) => {
+              {currentAnswers?.map((answer, index) => {
                 const isSelected = selectedAnswer === answer.id;
                 const isCorrect = isAnswerSubmitted && answer.correct;
                 const isWrong =

@@ -4,17 +4,14 @@ import { keycloak } from "../services/keycloak";
 export const KeycloakContext = React.createContext({
   authenticated: null,
   loading: null,
-  accessToken: null,
-  idToken: null,
-  refreshToken: null,
+  username: null,
 });
 
 export const KeycloakProvider = ({ children }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [accessToken, setAccessToken] = useState(null);
-  const [idToken, setIdToken] = useState(null);
-  const [refreshToken, setRefreshToken] = useState(null);
+  const [username, setUsername] = useState(null);
+
 
   useEffect(() => {
     // Đổi từ sessionStorage sang localStorage
@@ -41,6 +38,7 @@ export const KeycloakProvider = ({ children }) => {
           localStorage.setItem("kc_token", keycloak.token);
           localStorage.setItem("kc_refreshToken", keycloak.refreshToken);
           localStorage.setItem("kc_idToken", keycloak.idToken);
+          setUsername(keycloak.tokenParsed?.preferred_username || null);
 
           // 🕑 Setup auto-refresh với cleanup
           const refreshInterval = setInterval(() => {
@@ -112,7 +110,7 @@ export const KeycloakProvider = ({ children }) => {
   }, []);
 
   return (
-    <KeycloakContext.Provider value={{ keycloak, authenticated: authenticated, loading: loading, accessToken: keycloak.token, idToken: keycloak.idToken, refreshToken: keycloak.refreshToken }}>
+    <KeycloakContext.Provider value={{ keycloak, authenticated: authenticated, loading: loading, username: username }}>
       {children}
     </KeycloakContext.Provider>
   );
