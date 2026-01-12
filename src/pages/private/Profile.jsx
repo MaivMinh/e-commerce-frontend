@@ -443,13 +443,13 @@ const Profile = () => {
                       <Avatar
                         size={96}
                         src={
-                          userProfile.tempAvatarRemoved
+                          userProfile?.tempAvatarRemoved
                             ? null
-                            : userProfile.avatar || userProfile.avatar
+                            : userProfile?.avatar || userProfile?.avatar
                         }
                         icon={
-                          (userProfile.tempAvatarRemoved ||
-                            (!userProfile.avatar && !userProfile.avatar)) && (
+                          (userProfile?.tempAvatarRemoved ||
+                            (!userProfile?.avatar && !userProfile?.avatar)) && (
                             <UserOutlined />
                           )
                         }
@@ -473,8 +473,8 @@ const Profile = () => {
                   />
 
                   {/* Hiển thị nút xóa avatar nếu có avatar */}
-                  {!userProfile.tempAvatarRemoved &&
-                    (userProfile.avatar || userProfile.avatar) && (
+                  {!userProfile?.tempAvatarRemoved &&
+                    (userProfile?.avatar || userProfile?.avatar) && (
                       <div>
                         <Button
                           size="small"
@@ -489,10 +489,10 @@ const Profile = () => {
                 </div>
 
                 <Title level={3} className="mb-1">
-                  {userProfile.fullName}
+                  {userProfile?.fullName}
                 </Title>
                 <Text type="secondary" className="mb-2">
-                  {userProfile.email}
+                  {userProfile?.email}
                 </Text>
                 <div className="text-sm text-gray-500 mt-2">
                   Thành viên từ {createdDate}

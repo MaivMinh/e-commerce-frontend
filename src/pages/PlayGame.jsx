@@ -157,21 +157,21 @@ const PlayGame = () => {
       case "GAME_RESULT":
         console.log(payload);
         setGameState("FINISHED");
-
-        const currentUser = payload.find((p) => p.username === username);
-        const currentIndex = payload.findIndex((p) => p.username === username);
         const vouchers = data.vouchers || [];
-
         const receivedVoucher = vouchers.find(
           (voucher) => voucher.username === username
         );
+        const currentUser = payload.find((user) => user.username === username);
+        const currentIndex = payload.findIndex(
+          (user) => user.username === username
+        );
+
         const finalScore = currentUser?.score ?? score;
         const rank = currentIndex >= 0 ? currentIndex + 1 : "N/A";
 
         setGameResult({
           username: username,
           correct: currentUser?.correct || 0,
-          incorrect: currentUser?.incorrect || 0,
           score: finalScore,
           rank: rank,
           voucher: receivedVoucher ? receivedVoucher : null,
@@ -181,7 +181,8 @@ const PlayGame = () => {
       case "PLAYER_PARTICIPATED":
         const playerUsername = payload.username || "Một người chơi";
         messageApi.info(`👤 ${playerUsername} đã tham gia trò chơi`);
-        setParticipants(data.count || 0);
+        const participants = data.participants || 0;
+        setParticipants(participants);
         break;
 
       case "ERROR":
@@ -211,7 +212,7 @@ const PlayGame = () => {
     setSelectedAnswer(answerId);
     setIsAnswerSubmitted(true);
     const correct =
-      currentAnswers.find((ans) => ans.id === answerId)?.correct || false;
+      currentAnswers.find((ans) => ans.answerId === answerId)?.correct || false;
 
     sendMessage({
       type: "PLAYER_ANSWER",
@@ -477,9 +478,22 @@ const PlayGame = () => {
                   <p>
                     Giảm giá:{" "}
                     <Text strong className="text-red-600">
-                      {gameResult.voucher.discountPercentage}%
+                      {gameResult.voucher.discountPercentage
+                        ? `${gameResult.voucher.discountPercentage}%`
+                        : `${gameResult.voucher.value.toLocaleString(
+                            "vi-VN"
+                          )} VNĐ`}
                     </Text>
                   </p>
+                  {gameResult.voucher.maxValue && (
+                    <p>
+                      Giá trị tối đa:{" "}
+                      <Text strong className="text-red-600">
+                        {gameResult.voucher.maxValue.toLocaleString("vi-VN")}{" "}
+                        VNĐ
+                      </Text>
+                    </p>
+                  )}
                 </div>
               }
               type="success"
