@@ -3,33 +3,34 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   CloseCircleOutlined,
+  CrownOutlined,
+  FireOutlined,
   LoadingOutlined,
+  RocketOutlined,
+  StarOutlined,
+  ThunderboltOutlined,
   TrophyOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import {
-  Alert,
   Button,
-  Card,
   Col,
   Divider,
   message,
-  Modal,
-  Progress,
   Result,
   Row,
   Space,
-  Spin,
-  Statistic,
   Tag,
   Typography,
 } from "antd";
+import { AnimatePresence, motion } from "framer-motion";
 import { useContext, useEffect, useRef, useState } from "react";
+import Confetti from "react-confetti";
 import { useNavigate, useParams } from "react-router-dom";
+import "../../public/play_game.css";
 import { KeycloakContext } from "../components/KeycloakProvider";
 
 const { Title, Text, Paragraph } = Typography;
-const { Countdown } = Statistic;
 
 const PlayGame = () => {
   const { eventId } = useParams();
@@ -37,6 +38,11 @@ const PlayGame = () => {
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const [messageApi, contextHolder] = message.useMessage();
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
   // Game states
   const [gameState, setGameState] = useState("CONNECTING");
@@ -46,6 +52,7 @@ const PlayGame = () => {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [score, setScore] = useState(0);
+  const [currentScore, setCurrentScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [gameResult, setGameResult] = useState(null);
@@ -53,12 +60,22 @@ const PlayGame = () => {
   const [participants, setParticipants] = useState(0);
   const { username } = useContext(KeycloakContext);
 
+  // Window resize handler
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   // WebSocket connection
   const connectWebSocket = () => {
     try {
-      // Để test trực tiếp realtime-gateway (bỏ qua API Gateway), dùng port của realtime-gateway
       const token = localStorage.getItem("kc_token");
-
       const gatewayUrl = `ws://localhost:8088/ws/events?token=${token}&eventId=${eventId}`;
       const wsUrl = gatewayUrl;
 
@@ -70,7 +87,6 @@ const PlayGame = () => {
         setConnectionStatus("CONNECTED");
         setGameState("WAITING");
 
-        // Send join event message
         sendMessage({
           type: "JOIN_EVENT",
           eventId: eventId,
@@ -105,7 +121,6 @@ const PlayGame = () => {
     }
   };
 
-  // Send message through WebSocket
   const sendMessage = (message) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
@@ -116,8 +131,6 @@ const PlayGame = () => {
     }
   };
 
-  // Handle incoming WebSocket messages
-  // Handle incoming WebSocket messages
   const handleWebSocketMessage = (data) => {
     console.log("Received data from server: ", data);
     const payload = data.payload || {};
@@ -141,9 +154,9 @@ const PlayGame = () => {
         setGameState("PLAYING");
         setCurrentQuestion(payload.question);
         setCurrentAnswers(payload.answers || []);
-        console.log(payload.answers);
         setQuestionNumber(payload.index + 1);
         setTimeLeft(payload.timeLimit || 30);
+        setCurrentScore(payload.score || 10);
         setSelectedAnswer(null);
         setIsAnswerSubmitted(false);
         break;
@@ -157,6 +170,7 @@ const PlayGame = () => {
       case "GAME_RESULT":
         console.log(payload);
         setGameState("FINISHED");
+        setShowConfetti(true);
         const vouchers = data.vouchers || [];
         const receivedVoucher = vouchers.find(
           (voucher) => voucher.username === username
@@ -176,6 +190,8 @@ const PlayGame = () => {
           rank: rank,
           voucher: receivedVoucher ? receivedVoucher : null,
         });
+
+        setTimeout(() => setShowConfetti(false), 5000);
         break;
 
       case "PLAYER_PARTICIPATED":
@@ -183,6 +199,12 @@ const PlayGame = () => {
         messageApi.info(`👤 ${playerUsername} đã tham gia trò chơi`);
         const participants = data.participants || 0;
         setParticipants(participants);
+        break;
+
+      case "PLAYER_LEFT":
+        const userLeft = payload.username || "Một người chơi";
+        messageApi.info(`👤 ${userLeft} đã rời trò chơi`);
+        setParticipants(data.participants || 0);
         break;
 
       case "ERROR":
@@ -201,18 +223,30 @@ const PlayGame = () => {
 
       default:
         console.warn("⚠️ Unknown message type:", data.type);
-        console.warn("   - Full message:", data);
     }
   };
 
-  // Submit answer
   const handleSubmitAnswer = (answerId) => {
     if (isAnswerSubmitted) return;
 
     setSelectedAnswer(answerId);
     setIsAnswerSubmitted(true);
+
+    console.log("clicked:", answerId, typeof answerId);
+    console.log(
+      "answers:",
+      currentAnswers.map((a) => [a.answerId, typeof a.answerId])
+    );
+
     const correct =
-      currentAnswers.find((ans) => ans.answerId === answerId)?.correct || false;
+      currentAnswers.find((ans) => ans.answerId === Number(answerId))
+        ?.correct ?? false;
+
+    /// Update score.
+    if (correct) {
+      console.log("Answer correct");
+      setScore((prev) => prev + currentScore);
+    } else console.log("Answer wrong");
 
     sendMessage({
       type: "PLAYER_ANSWER",
@@ -224,11 +258,9 @@ const PlayGame = () => {
     });
   };
 
-  // Initialize WebSocket connection
   useEffect(() => {
     connectWebSocket();
 
-    // Cleanup on unmount
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -239,16 +271,14 @@ const PlayGame = () => {
     };
   }, [eventId]);
 
-  // Timer countdown
   useEffect(() => {
     if (gameState !== "PLAYING" || timeLeft <= 0) return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          // Auto submit when time runs out
           if (!isAnswerSubmitted) {
-            handleSubmitAnswer(null);
+            setIsAnswerSubmitted(true);
           }
           return 0;
         }
@@ -259,75 +289,119 @@ const PlayGame = () => {
     return () => clearInterval(timer);
   }, [gameState, timeLeft, isAnswerSubmitted]);
 
-  // Render connection status
   const renderConnectionStatus = () => {
     const statusConfig = {
       CONNECTING: {
-        color: "blue",
+        color: "processing",
         text: "Đang kết nối...",
-        icon: <LoadingOutlined />,
+        icon: <LoadingOutlined spin />,
       },
       CONNECTED: {
-        color: "green",
+        color: "success",
         text: "Đã kết nối",
         icon: <CheckCircleOutlined />,
       },
       DISCONNECTED: {
-        color: "red",
+        color: "error",
         text: "Mất kết nối",
         icon: <CloseCircleOutlined />,
       },
-      ERROR: { color: "red", text: "Lỗi kết nối", icon: <WarningOutlined /> },
+      ERROR: {
+        color: "error",
+        text: "Lỗi kết nối",
+        icon: <WarningOutlined />,
+      },
     };
 
     const config = statusConfig[connectionStatus];
     return (
-      <Tag color={config.color} icon={config.icon}>
+      <Tag
+        color={config.color}
+        icon={config.icon}
+        className="px-4 py-2 text-base"
+      >
         {config.text}
       </Tag>
     );
   };
 
-  // Render waiting screen
   const renderWaitingScreen = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
+    <div className="game-container">
       {contextHolder}
-      <Card className="w-full max-w-2xl shadow-2xl">
-        <div className="text-center">
-          <Spin size="large" />
-          <Title level={2} className="mt-6">
-            Đang chờ trò chơi bắt đầu...
-          </Title>
-          <Paragraph className="text-lg text-gray-600">
-            Vui lòng đợi host bắt đầu trò chơi
-          </Paragraph>
+      <div className="floating-shapes">
+        <div className="shape shape-1"></div>
+        <div className="shape shape-2"></div>
+        <div className="shape shape-3"></div>
+        <div className="shape shape-4"></div>
+      </div>
 
-          <Divider />
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-2xl"
+        >
+          <div className="game-card p-8">
+            <div className="text-center">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="inline-block mb-6"
+              >
+                <RocketOutlined className="text-7xl text-purple-600" />
+              </motion.div>
 
-          <Space direction="vertical" size="large" className="w-full">
-            <div>{renderConnectionStatus()}</div>
+              <Title
+                level={1}
+                className="mb-4 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
+              >
+                Đang chờ trò chơi bắt đầu...
+              </Title>
 
-            <div>
-              <Text strong>Người tham gia: </Text>
-              <Tag color="blue" className="text-lg px-4 py-1">
-                {participants} người
-              </Tag>
+              <Paragraph className="text-xl text-gray-600 mb-8">
+                Vui lòng đợi host bắt đầu trò chơi
+              </Paragraph>
+
+              <Divider />
+
+              <Space direction="vertical" size="large" className="w-full">
+                <div>{renderConnectionStatus()}</div>
+
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="participant-badge"
+                >
+                  <FireOutlined />
+                  <span>{participants} người chơi</span>
+                </motion.div>
+
+                <Button
+                  icon={<ArrowLeftOutlined />}
+                  onClick={() => navigate(`/events/${eventId}`)}
+                  size="large"
+                  className="mt-4"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    border: "none",
+                    color: "white",
+                    height: "50px",
+                    fontSize: "16px",
+                    borderRadius: "25px",
+                  }}
+                >
+                  Quay lại
+                </Button>
+              </Space>
             </div>
-
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate(`/events/${eventId}`)}
-              size="large"
-            >
-              Quay lại
-            </Button>
-          </Space>
-        </div>
-      </Card>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 
-  // Render playing screen
   const renderPlayingScreen = () => {
     if (!currentQuestion) return null;
 
@@ -335,213 +409,391 @@ const PlayGame = () => {
       totalQuestions > 0 ? (questionNumber / totalQuestions) * 100 : 0;
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
+      <div className="game-container">
         {contextHolder}
-        <div className="max-w-5xl mx-auto">
+        <div className="floating-shapes">
+          <div className="shape shape-1"></div>
+          <div className="shape shape-2"></div>
+          <div className="shape shape-3"></div>
+          <div className="shape shape-4"></div>
+        </div>
+
+        <div className="max-w-6xl mx-auto p-4">
           {/* Header */}
-          <Card className="mb-4 shadow-lg">
-            <Row gutter={[16, 16]} align="middle">
-              <Col xs={24} md={8}>
-                <Space>
-                  <TrophyOutlined className="text-2xl text-yellow-500" />
-                  <Statistic title="Điểm số" value={score} />
-                </Space>
-              </Col>
-              <Col xs={24} md={8} className="text-center">
-                <Text strong className="text-lg">
-                  Câu hỏi {questionNumber}/{totalQuestions}
-                </Text>
-                <Progress
-                  percent={progress}
-                  showInfo={false}
-                  strokeColor="#722ed1"
-                />
-              </Col>
-              <Col xs={24} md={8} className="text-right">
-                <Space>
-                  <ClockCircleOutlined className="text-2xl text-red-500" />
-                  <Countdown
-                    value={Date.now() + timeLeft * 1000}
-                    format="ss"
-                    valueStyle={{
-                      fontSize: "32px",
-                      color: timeLeft <= 5 ? "#f5222d" : "#1890ff",
-                    }}
-                  />
-                </Space>
-              </Col>
-            </Row>
-          </Card>
+          <motion.div
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="game-card p-6 mb-4">
+              <Row gutter={[16, 16]} align="middle">
+                <Col xs={24} md={8}>
+                  <div className="score-badge text-center">
+                    <TrophyOutlined className="text-3xl mr-2" />
+                    <span className="text-2xl font-bold">{score} điểm</span>
+                  </div>
+                </Col>
+                <Col xs={24} md={8} className="text-center">
+                  <Text strong className="text-xl block mb-2">
+                    Câu hỏi {questionNumber}/{totalQuestions}
+                  </Text>
+                  <div className="progress-bar-custom">
+                    <div
+                      style={{
+                        width: `${progress}%`,
+                        height: "100%",
+                        background: "white",
+                        borderRadius: "10px",
+                        transition: "width 0.3s ease",
+                      }}
+                    />
+                  </div>
+                </Col>
+                <Col xs={24} md={8}>
+                  <div className="text-center">
+                    <motion.div
+                      animate={timeLeft <= 5 ? { scale: [1, 1.2, 1] } : {}}
+                      transition={{
+                        duration: 0.5,
+                        repeat: timeLeft <= 5 ? Infinity : 0,
+                      }}
+                    >
+                      <ClockCircleOutlined
+                        className="text-4xl mr-2"
+                        style={{ color: timeLeft <= 5 ? "#f5222d" : "#1890ff" }}
+                      />
+                      <span
+                        className="text-4xl font-bold"
+                        style={{ color: timeLeft <= 5 ? "#f5222d" : "#1890ff" }}
+                      >
+                        {timeLeft}s
+                      </span>
+                    </motion.div>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+          </motion.div>
 
           {/* Question */}
-          <Card className="mb-4 shadow-lg">
-            <Title level={3} className="text-center mb-6">
-              {currentQuestion.content}
-            </Title>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentQuestion.id}
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -100 }}
+              transition={{ duration: 0.5 }}
+            >
+              <div className="game-card p-8 mb-4">
+                <Title
+                  level={2}
+                  className="text-center mb-6 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
+                >
+                  {currentQuestion.content}
+                </Title>
 
-            {/* Question Image */}
-            {currentQuestion.imageUrl && (
-              <div className="text-center mb-6">
-                <img
-                  src={currentQuestion.imageUrl}
-                  alt="Question"
-                  className="max-w-full max-h-96 mx-auto rounded-lg shadow-md"
-                />
+                {currentQuestion.imageUrl && (
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.5 }}
+                    className="text-center mb-6"
+                  >
+                    <img
+                      src={currentQuestion.imageUrl}
+                      alt="Question"
+                      className="max-w-full max-h-96 mx-auto rounded-2xl shadow-2xl"
+                    />
+                  </motion.div>
+                )}
+
+                {/* Answers */}
+                <Row gutter={[16, 16]} className="mt-8">
+                  {currentAnswers?.map((answer, index) => {
+                    const isSelected = selectedAnswer === answer.id;
+                    const isCorrect = isAnswerSubmitted && answer.correct;
+                    const isWrong =
+                      isAnswerSubmitted && isSelected && !answer.correct;
+
+                    return (
+                      <Col xs={24} sm={12} key={answer.id}>
+                        <motion.div
+                          whileHover={
+                            !isAnswerSubmitted ? { scale: 1.05, y: -5 } : {}
+                          }
+                          whileTap={!isAnswerSubmitted ? { scale: 0.95 } : {}}
+                        >
+                          <div
+                            className={`answer-card p-6 ${
+                              isCorrect ? "answer-correct" : ""
+                            } ${isWrong ? "answer-wrong" : ""} ${
+                              isSelected && !isAnswerSubmitted
+                                ? "answer-selected"
+                                : ""
+                            }`}
+                            onClick={() =>
+                              !isAnswerSubmitted &&
+                              handleSubmitAnswer(answer.answerId)
+                            }
+                            style={{
+                              cursor: isAnswerSubmitted
+                                ? "not-allowed"
+                                : "pointer",
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg"
+                                  style={{
+                                    background:
+                                      isCorrect || isWrong
+                                        ? "rgba(255, 255, 255, 0.3)"
+                                        : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                                    color: "white",
+                                  }}
+                                >
+                                  {String.fromCharCode(65 + index)}
+                                </div>
+                                <Text
+                                  strong
+                                  className="text-lg"
+                                  style={{
+                                    color:
+                                      isCorrect || isWrong
+                                        ? "white"
+                                        : "inherit",
+                                  }}
+                                >
+                                  {answer.answerText}
+                                </Text>
+                              </div>
+                              {isCorrect && (
+                                <CheckCircleOutlined className="text-3xl text-white" />
+                              )}
+                              {isWrong && (
+                                <CloseCircleOutlined className="text-3xl text-white" />
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      </Col>
+                    );
+                  })}
+                </Row>
               </div>
-            )}
-
-            {/* Answers */}
-            <Row gutter={[16, 16]}>
-              {currentAnswers?.map((answer, index) => {
-                const isSelected = selectedAnswer === answer.id;
-                const isCorrect = isAnswerSubmitted && answer.correct;
-                const isWrong =
-                  isAnswerSubmitted && isSelected && !answer.correct;
-
-                let className = "answer-card";
-                if (isCorrect) className += " answer-correct";
-                else if (isWrong) className += " answer-wrong";
-                else if (isSelected) className += " answer-selected";
-
-                return (
-                  <Col xs={24} sm={12} key={answer.id}>
-                    <Card
-                      hoverable={!isAnswerSubmitted}
-                      className={className}
-                      onClick={() =>
-                        !isAnswerSubmitted && handleSubmitAnswer(answer.id)
-                      }
-                    >
-                      <div className="flex items-center justify-between">
-                        <Text strong className="text-lg">
-                          {String.fromCharCode(65 + index)}. {answer.answerText}
-                        </Text>
-                        {isCorrect && (
-                          <CheckCircleOutlined className="text-2xl text-green-500" />
-                        )}
-                        {isWrong && (
-                          <CloseCircleOutlined className="text-2xl text-red-500" />
-                        )}
-                      </div>
-                    </Card>
-                  </Col>
-                );
-              })}
-            </Row>
-          </Card>
+            </motion.div>
+          </AnimatePresence>
 
           {/* Connection Status */}
-          <div className="text-center">{renderConnectionStatus()}</div>
+          <div className="text-center mt-4">{renderConnectionStatus()}</div>
         </div>
       </div>
     );
   };
 
-  // Render result screen
   const renderResultScreen = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50">
+    <div className="game-container">
       {contextHolder}
-      <Card className="w-full max-w-2xl shadow-2xl">
-        <Result
-          status="success"
-          title="🎉 Hoàn thành trò chơi!"
-          subTitle={`Điểm số của bạn: ${gameResult?.score || score} điểm`}
-          extra={[
-            <Button
-              type="primary"
-              size="large"
-              onClick={() => navigate(`/events/${eventId}`)}
-              key="back"
-            >
-              Quay lại sự kiện
-            </Button>,
-            <Button
-              size="large"
-              onClick={() => navigate("/events")}
-              key="events"
-            >
-              Danh sách sự kiện
-            </Button>,
-          ]}
+      {showConfetti && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={500}
+        />
+      )}
+
+      <div className="floating-shapes">
+        <div className="shape shape-1"></div>
+        <div className="shape shape-2"></div>
+        <div className="shape shape-3"></div>
+        <div className="shape shape-4"></div>
+      </div>
+
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-3xl"
         >
-          {gameResult?.voucher && (
-            <Alert
-              message="Chúc mừng! Bạn đã nhận được voucher"
-              description={
-                <div>
-                  <p>
+          <div className="game-card p-8">
+            <motion.div
+              animate={{ rotate: [0, 10, -10, 0] }}
+              transition={{ duration: 0.5, repeat: 3 }}
+              className="text-center mb-6"
+            >
+              <TrophyOutlined className="result-trophy text-yellow-500" />
+            </motion.div>
+
+            <Title
+              level={1}
+              className="text-center mb-4 bg-gradient-to-r from-yellow-500 to-orange-500 bg-clip-text text-transparent"
+            >
+              🎉 Hoàn thành trò chơi!
+            </Title>
+
+            <div className="text-center mb-8">
+              <div className="inline-block score-badge text-4xl py-4 px-8">
+                <StarOutlined className="mr-3" />
+                {gameResult?.score || score} điểm
+              </div>
+            </div>
+
+            {gameResult?.rank && (
+              <div className="text-center mb-6">
+                <Tag
+                  color="purple"
+                  className="text-2xl py-3 px-6"
+                  icon={<CrownOutlined />}
+                >
+                  Hạng {gameResult.rank}
+                </Tag>
+              </div>
+            )}
+
+            {gameResult?.voucher && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="voucher-card mb-6"
+              >
+                <Title
+                  level={3}
+                  className="text-white mb-4 flex items-center gap-2"
+                >
+                  <ThunderboltOutlined />
+                  Chúc mừng! Bạn đã nhận được voucher
+                </Title>
+                <div className="bg-white bg-opacity-20 rounded-lg p-4">
+                  <p className="text-white text-lg mb-2">
                     Mã voucher:{" "}
-                    <Text code strong>
+                    <Text code strong className="text-2xl bg-white px-4 py-2">
                       {gameResult.voucher.code}
                     </Text>
                   </p>
-                  <p>
+                  <p className="text-white text-lg mb-2">
                     Giảm giá:{" "}
-                    <Text strong className="text-red-600">
+                    <span className="text-2xl font-bold text-yellow-300">
                       {gameResult.voucher.discountPercentage
                         ? `${gameResult.voucher.discountPercentage}%`
                         : `${gameResult.voucher.value.toLocaleString(
                             "vi-VN"
                           )} VNĐ`}
-                    </Text>
+                    </span>
                   </p>
                   {gameResult.voucher.maxValue && (
-                    <p>
+                    <p className="text-white text-lg">
                       Giá trị tối đa:{" "}
-                      <Text strong className="text-red-600">
+                      <span className="text-2xl font-bold text-yellow-300">
                         {gameResult.voucher.maxValue.toLocaleString("vi-VN")}{" "}
                         VNĐ
-                      </Text>
+                      </span>
                     </p>
                   )}
                 </div>
-              }
-              type="success"
-              showIcon
-              className="mt-4"
-            />
-          )}
-        </Result>
-      </Card>
+              </motion.div>
+            )}
+
+            <Space className="w-full justify-center mt-8" size="large">
+              <Button
+                type="primary"
+                size="large"
+                onClick={() => navigate(`/events/${eventId}`)}
+                style={{
+                  background:
+                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  border: "none",
+                  height: "55px",
+                  fontSize: "18px",
+                  borderRadius: "27px",
+                  padding: "0 40px",
+                }}
+              >
+                Quay lại sự kiện
+              </Button>
+              <Button
+                size="large"
+                onClick={() => navigate("/events")}
+                style={{
+                  height: "55px",
+                  fontSize: "18px",
+                  borderRadius: "27px",
+                  padding: "0 40px",
+                }}
+              >
+                Danh sách sự kiện
+              </Button>
+            </Space>
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 
-  // Render error screen
   const renderErrorScreen = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
+    <div className="game-container">
       {contextHolder}
-      <Card className="w-full max-w-2xl shadow-2xl">
-        <Result
-          status="error"
-          title="Lỗi kết nối"
-          subTitle="Không thể kết nối tới server. Vui lòng thử lại sau."
-          extra={[
-            <Button
-              type="primary"
-              size="large"
-              onClick={() => {
-                setReconnectAttempts(0);
-                setGameState("CONNECTING");
-                connectWebSocket();
-              }}
-              key="retry"
-            >
-              Thử lại
-            </Button>,
-            <Button
-              size="large"
-              onClick={() => navigate(`/events/${eventId}`)}
-              key="back"
-            >
-              Quay lại
-            </Button>,
-          ]}
-        />
-      </Card>
+      <div className="floating-shapes">
+        <div className="shape shape-1"></div>
+        <div className="shape shape-2"></div>
+        <div className="shape shape-3"></div>
+        <div className="shape shape-4"></div>
+      </div>
+
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-2xl"
+        >
+          <div className="game-card p-8">
+            <Result
+              status="error"
+              title={<span className="text-3xl">Lỗi kết nối</span>}
+              subTitle="Không thể kết nối tới server. Vui lòng thử lại sau."
+              extra={[
+                <Button
+                  type="primary"
+                  size="large"
+                  onClick={() => {
+                    setGameState("CONNECTING");
+                    connectWebSocket();
+                  }}
+                  key="retry"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    border: "none",
+                    height: "50px",
+                    fontSize: "16px",
+                    borderRadius: "25px",
+                  }}
+                >
+                  Thử lại
+                </Button>,
+                <Button
+                  size="large"
+                  onClick={() => navigate(`/events/${eventId}`)}
+                  key="back"
+                  style={{
+                    height: "50px",
+                    fontSize: "16px",
+                    borderRadius: "25px",
+                  }}
+                >
+                  Quay lại
+                </Button>,
+              ]}
+            />
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 
-  // Main render
   switch (gameState) {
     case "CONNECTING":
       return renderWaitingScreen();

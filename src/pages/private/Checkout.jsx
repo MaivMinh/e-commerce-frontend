@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   Typography,
   Button,
@@ -31,6 +31,7 @@ import { useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import apiClient from "../../services/apiClient";
 import { keycloak } from "../../services/keycloak";
+import { KeycloakContext } from "../../components/KeycloakProvider";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -59,34 +60,35 @@ const Checkout = () => {
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [addressForm] = Form.useForm();
   const [addingAddress, setAddingAddress] = useState(false);
-  
+
   const [productId, setProductId] = useState(null);
+
+  const { username } = useContext(KeycloakContext);
 
   // Mock shipping fee
   const shippingFee = 30000;
-
 
   const fetchProductDetail = async () => {
     const items = localStorage.getItem("selected-cart-items");
     if (items.length <= 0) return;
     try {
-
       const productVariant = JSON.parse(items)[0].productVariantDTO;
       const productVariantId = productVariant.id;
-      
-      const response = await apiClient.get(`/api/products/find-by-product-variant?productVariantId=${productVariantId}`);
-        const product = response.data.data;
-        setProductId(product);
+
+      const response = await apiClient.get(
+        `/api/products/find-by-product-variant?productVariantId=${productVariantId}`
+      );
+      const product = response.data.data;
+      setProductId(product);
     } catch (error) {
       console.error("Error fetching product by slug:", error);
     }
-  }
+  };
 
   useEffect(() => {
     fetchProductDetail();
-  }, [])
-  
-  
+  }, []);
+
   // Load cart data
   useEffect(() => {
     setLoading(true);
@@ -206,44 +208,31 @@ const Checkout = () => {
         address: values.address,
         isDefault: values.isDefault || false,
       };
+      payload.username = username;
 
-      // In a real app, this would be an API call
-      // Simulate API call with timeout
-      setTimeout(() => {
-        // Create a new address with a unique ID
-        const newAddress = {
-          ...payload,
-          id: addresses.length + 1,
-        };
+      /// Call api /api/addresses to add new address
+      const response = await apiClient.post("/api/addresses", payload);
+      const updatedAddress = [...addresses, response.data.data];
 
-        // Update addresses list
-        const updatedAddresses = [...addresses];
-
-        // If this is the default address, remove default from others
-        if (newAddress.isDefault) {
-          updatedAddresses.forEach((addr) => {
+      if (payload.isDefault) {
+        updatedAddress.forEach((addr) => {
+          if (addr.id !== response.data.data.id) {
             addr.isDefault = false;
-          });
-        }
-
-        updatedAddresses.push(newAddress);
-        setAddresses(updatedAddresses);
-
-        // Select the new address
-        setSelectedAddress(newAddress.id);
-
-        // Show success notification
-        notification.success({
-          message: "Thêm địa chỉ thành công",
-          description:
-            "Địa chỉ mới đã được thêm vào danh sách địa chỉ của bạn.",
+          }
         });
+      }
 
-        // Close modal and reset form
-        setShowAddressModal(false);
-        addressForm.resetFields();
-        setAddingAddress(false);
-      }, 500);
+      setAddresses(updatedAddress);
+      setSelectedAddress(response.data.data.id);
+
+      notification.success({
+        message: "Thêm địa chỉ thành công",
+        description: "Địa chỉ mới đã được thêm vào danh sách địa chỉ của bạn.",
+      });
+
+      setShowAddressModal(false);
+      addressForm.resetFields();
+      setAddingAddress(false);
     } catch (error) {
       console.error("Lỗi khi thêm địa chỉ:", error);
       notification.error({
@@ -367,8 +356,9 @@ const Checkout = () => {
         subtotal: calculateSubtotal(),
         discount: calculateDiscount(),
         total: calculateTotal(),
-        paymentMethodId: getSelectedPaymentMethod().id,
-        promotionId: appliedPromotion?.id || null,
+        paymentMethod: getSelectedPaymentMethod().code,
+        promotionId: appliedPromotion?.isRedeemedVoucher === false ? appliedPromotion.id : null,
+        voucherId: appliedPromotion?.isRedeemedVoucher === true ? appliedPromotion.id : null,
         currency: "VND",
         note: form.getFieldValue("note") || "",
         orderItemDtos: cartItems.map((item) => ({
@@ -377,7 +367,7 @@ const Checkout = () => {
           price: item.productVariantDTO.price,
           total: item.productVariantDTO.price * item.quantity,
         })),
-        productId: productId
+        productId: productId,
       };
 
       // Gọi API đặt hàng

@@ -95,8 +95,6 @@ const Order = () => {
     fetchOrders();
   }, []);
 
-  
-
   // Handle client-side search
   const handleSearch = (value) => {
     setSearchText(value);
@@ -133,7 +131,7 @@ const Order = () => {
     if (searchText && searchText.trim()) {
       fetchOrders(page, pageSize, searchText.trim(), status);
     } else {
-      fetchOrders(page, pageSize,null, status);
+      fetchOrders(page, pageSize, null, status);
     }
   };
 
@@ -149,67 +147,71 @@ const Order = () => {
   };
 
   const getStatusTag = (status) => {
-    console.log("get status tag");
     switch (status) {
-      case "completed":
+      case "CREATED":
+        return (
+          <Tag color="default" icon={<ClockCircleOutlined />}>
+            Đã tạo
+          </Tag>
+        );
+      case "CONFIRMED":
+        return (
+          <Tag color="blue" icon={<CheckCircleOutlined />}>
+            Đã xác nhận
+          </Tag>
+        );
+      case "DELIVERED":
+        return (
+          <Tag color="cyan" icon={<InboxOutlined />}>
+            Đã giao
+          </Tag>
+        );
+      case "SUCCESS":
         return (
           <Tag color="success" icon={<CheckCircleOutlined />}>
-            Hoàn thành
+            Thành công
           </Tag>
         );
-      case "processing":
-        return (
-          <Tag color="processing" icon={<SyncOutlined spin />}>
-            Đang xử lý
-          </Tag>
-        );
-      case "shipped":
-        return (
-          <Tag color="blue" icon={<InboxOutlined />}>
-            Đang giao
-          </Tag>
-        );
-      case "pending":
-        return (
-          <Tag color="warning" icon={<ClockCircleOutlined />}>
-            Chờ xử lý
-          </Tag>
-        );
-      case "failed":
+      case "CANCELLED":
         return (
           <Tag color="error" icon={<CloseCircleOutlined />}>
-            Thất bại
+            Đã hủy
           </Tag>
         );
-      case "cancelled":
+      case "ROLLBACK":
         return (
-          <Tag color="default" icon={<CloseCircleOutlined />}>
-            Đã hủy
+          <Tag color="warning" icon={<SyncOutlined />}>
+            Hoàn trả
           </Tag>
         );
       default:
         return <Tag color="default">{status}</Tag>;
     }
   };
-
   const getPaymentStatusTag = (status) => {
     switch (status) {
-      case "completed":
-        return (
-          <Tag color="success" icon={<DollarOutlined />}>
-            Đã thanh toán
-          </Tag>
-        );
-      case "pending":
+      case "PENDING":
         return (
           <Tag color="warning" icon={<ClockCircleOutlined />}>
             Chờ thanh toán
           </Tag>
         );
-      case "failed":
+      case "COMPLETED":
+        return (
+          <Tag color="success" icon={<DollarOutlined />}>
+            Đã thanh toán
+          </Tag>
+        );
+      case "FAILED":
         return (
           <Tag color="error" icon={<CloseCircleOutlined />}>
-            Thanh toán thất bại
+            Thất bại
+          </Tag>
+        );
+      case "REFUNDED":
+        return (
+          <Tag color="purple" icon={<SyncOutlined />}>
+            Đã hoàn tiền
           </Tag>
         );
       default:

@@ -19,6 +19,7 @@ export const KeycloakProvider = ({ children }) => {
     const storedRefreshToken = localStorage.getItem("kc_refreshToken");
     const storedIdToken = localStorage.getItem("kc_idToken");
 
+
     keycloak
       .init({
         onLoad: "check-sso", // ✅ Đổi từ "login-required" sang "check-sso"

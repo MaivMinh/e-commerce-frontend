@@ -28,6 +28,7 @@ import apiClient from "../../services/apiClient";
 import { CartContext } from "../../context/CartContext";
 import { AuthContext } from "../../context/AuthContext";
 import { keycloak } from "../../services/keycloak";
+import { KeycloakContext } from "../../components/KeycloakProvider";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -43,6 +44,7 @@ const Cart = () => {
   const [promotions, setPromotions] = useState([]);
   const [api, contextHolder] = notification.useNotification();
   const shippingFee = 30000;
+  const {username} = useContext(KeycloakContext);
 
   // Fetch cart items (mocked)
   useEffect(() => {
@@ -68,14 +70,36 @@ const Cart = () => {
   useEffect(() => {
     const fetchPromotions = async () => {
       try {
-        const response = await apiClient.get("/api/promotions");
-        setPromotions(response.data.data.promotions|| []);
+        let response = await apiClient.get("/api/promotions");
+        const result = response.data.data.promotions || [];
+        response = await apiClient.get(`/api/vouchers/${username}/redeem`);
+        const redeemedVouchers = response.data.data || [];
+        const savedPromotions = [
+          ...result,
+          ...redeemedVouchers.map((voucher) => ({
+            code: voucher.code,
+            discountValue: voucher.discountPercentage,
+            endDate: voucher.endDate,
+            value: voucher.discountPercentage !== null ? voucher.discountPercentage : voucher.value,
+            type: voucher.discountPercentage !== null ? "percentage" : "fixed",
+            id: voucher.id,
+            minOrderValue: voucher.minOrderValue,
+            startDate: voucher.startDate,
+            status: voucher.status,
+            usageCount: 1,
+            usageLimit: null,
+            isRedeemedVoucher: true
+          }))
+        ]
+        setPromotions(savedPromotions);
       } catch (error) {
         console.error("Failed to fetch promotions:", error);
       }
     };
     fetchPromotions();
   }, []);
+
+
 
   const openErrorNotification = (message) => {
     api.open({
