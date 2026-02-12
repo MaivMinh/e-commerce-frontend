@@ -53,12 +53,51 @@ const PlayGame = () => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [score, setScore] = useState(0);
   const [currentScore, setCurrentScore] = useState(0);
+  const [pendingScore, setPendingScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [gameResult, setGameResult] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState("CONNECTING");
   const [participants, setParticipants] = useState(0);
+  const [milestone, setMilestone] = useState(null);
+  const [showMilestone, setShowMilestone] = useState(false);
   const { username } = useContext(KeycloakContext);
+
+  // Milestone configurations
+  const milestoneConfig = {
+    STREAK_3: {
+      title: "🔥 Streak x3!",
+      description: "Bạn đã trả lời đúng 3 câu liên tiếp!",
+      color: "from-orange-400 to-red-500",
+      icon: "🔥",
+      emoji: "🎯",
+      particles: 200,
+    },
+    STREAK_5: {
+      title: "⚡ Streak x5!",
+      description: "Xuất sắc! 5 câu đúng liên tiếp!",
+      color: "from-yellow-400 to-orange-500",
+      icon: "⚡",
+      emoji: "🌟",
+      particles: 300,
+    },
+    STREAK_8: {
+      title: "💎 Streak x8!",
+      description: "Tuyệt vời! 8 câu đúng liên tiếp!",
+      color: "from-blue-400 to-purple-500",
+      icon: "💎",
+      emoji: "🚀",
+      particles: 400,
+    },
+    STREAK_10: {
+      title: "👑 Streak x10!",
+      description: "Huyền thoại! 10 câu đúng liên tiếp!",
+      color: "from-purple-500 to-pink-500",
+      icon: "👑",
+      emoji: "🏆",
+      particles: 500,
+    },
+  };
 
   // Window resize handler
   useEffect(() => {
@@ -159,12 +198,28 @@ const PlayGame = () => {
         setCurrentScore(payload.score || 10);
         setSelectedAnswer(null);
         setIsAnswerSubmitted(false);
+        setPendingScore(0);
         break;
 
       case "SCORING":
         messageApi.success(
-          payload.description || "Hệ thống đang thực hiện chấm điểm!"
+          payload.description || "Hệ thống đang thực hiện chấm điểm!",
         );
+        break;
+
+      case "MILESTONE_UPDATE":
+        // Handle milestone notification
+        setMilestone({
+          milestoneCode: data.milestoneCode,
+          description: data.description,
+          username: data.username
+        });
+        setShowMilestone(true);
+
+        // Auto hide after 3 seconds
+        setTimeout(() => {
+          setShowMilestone(false);
+        }, 5000);
         break;
 
       case "GAME_RESULT":
@@ -173,11 +228,11 @@ const PlayGame = () => {
         setShowConfetti(true);
         const vouchers = data.vouchers || [];
         const receivedVoucher = vouchers.find(
-          (voucher) => voucher.username === username
+          (voucher) => voucher.username === username,
         );
         const currentUser = payload.find((user) => user.username === username);
         const currentIndex = payload.findIndex(
-          (user) => user.username === username
+          (user) => user.username === username,
         );
 
         const finalScore = currentUser?.score ?? score;
@@ -235,18 +290,20 @@ const PlayGame = () => {
     console.log("clicked:", answerId, typeof answerId);
     console.log(
       "answers:",
-      currentAnswers.map((a) => [a.answerId, typeof a.answerId])
+      currentAnswers.map((a) => [a.answerId, typeof a.answerId]),
     );
 
     const correct =
       currentAnswers.find((ans) => ans.answerId === Number(answerId))
         ?.correct ?? false;
 
-    /// Update score.
     if (correct) {
       console.log("Answer correct");
-      setScore((prev) => prev + currentScore);
-    } else console.log("Answer wrong");
+      setPendingScore(currentScore);
+    } else {
+      console.log("Answer wrong");
+      setPendingScore(0);
+    }
 
     sendMessage({
       type: "PLAYER_ANSWER",
@@ -280,6 +337,10 @@ const PlayGame = () => {
           if (!isAnswerSubmitted) {
             setIsAnswerSubmitted(true);
           }
+          if (pendingScore > 0) {
+            setScore((currentScore) => currentScore + pendingScore);
+            setPendingScore(0);
+          }
           return 0;
         }
         return prev - 1;
@@ -287,7 +348,199 @@ const PlayGame = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [gameState, timeLeft, isAnswerSubmitted]);
+  }, [gameState, timeLeft, isAnswerSubmitted, pendingScore]);
+
+  const renderMilestoneNotification = () => {
+    if (!showMilestone || !milestone) return null;
+
+    const config = milestoneConfig[milestone.milestoneCode];
+    if (!config) return null;
+
+    const isCurrentUser = milestone.username === username;
+
+    return (
+      <>
+        {/* Confetti for milestone - lighter effect */}
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={isCurrentUser ? config.particles : 100}
+          gravity={0.3}
+          style={{ pointerEvents: "none" }}
+        />
+
+        {/* Milestone Notification - Bottom Right Corner */}
+        <motion.div
+          initial={{ x: 400, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: 400, opacity: 0 }}
+          transition={{
+            type: "spring",
+            stiffness: 200,
+            damping: 25,
+          }}
+          className="fixed bottom-8 right-8 z-50"
+          style={{
+            maxWidth: "420px",
+            pointerEvents: "none",
+          }}
+        >
+          {/* Glowing background effect */}
+          <div className="absolute inset-0 blur-2xl opacity-40">
+            <div
+              className={`w-full h-full bg-gradient-to-r ${config.color} rounded-3xl`}
+            ></div>
+          </div>
+
+          {/* Main milestone card */}
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{
+              type: "spring",
+              stiffness: 300,
+              damping: 20,
+            }}
+            className="relative bg-white rounded-2xl shadow-2xl overflow-hidden"
+          >
+            {/* Gradient border effect */}
+            <div
+              className={`absolute inset-0 bg-gradient-to-r ${config.color} opacity-20`}
+            ></div>
+
+            {/* Content */}
+            <div className="relative p-6">
+              {/* Icon and Title Row */}
+              <div className="flex items-center gap-4 mb-3">
+                <motion.div
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 10, -10, 0],
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    repeat: 2,
+                    repeatDelay: 0.2,
+                  }}
+                  className="flex-shrink-0"
+                >
+                  <span className="text-5xl">{config.icon}</span>
+                </motion.div>
+
+                <div className="flex-1 min-w-0">
+                  <motion.h3
+                    initial={{ y: 10, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                    className={`text-2xl font-black bg-gradient-to-r ${config.color} bg-clip-text text-transparent mb-1`}
+                  >
+                    {config.title}
+                  </motion.h3>
+
+                  <motion.p
+                    initial={{ y: 10, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-sm text-gray-600 font-medium"
+                  >
+                    {config.description}
+                  </motion.p>
+                </div>
+              </div>
+
+              {/* Username Badge */}
+              <motion.div
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="flex items-center gap-2 mt-3"
+              >
+                <div
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r ${config.color} bg-opacity-10 backdrop-blur-sm`}
+                >
+                  <span className="text-xl">{config.emoji}</span>
+                  <span
+                    className={`text-sm font-bold bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}
+                  >
+                    {isCurrentUser ? "Bạn" : milestone.username}
+                  </span>
+                  {isCurrentUser && (
+                    <span className="text-xs font-semibold text-gray-600">
+                      đã đạt được!
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Custom description from server */}
+              {milestone.description && (
+                <motion.p
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-xs text-gray-500 italic mt-2"
+                >
+                  {milestone.description}
+                </motion.p>
+              )}
+
+              {/* Decorative particles - fewer particles */}
+              <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden rounded-2xl">
+                {[...Array(8)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{
+                      x: Math.random() * 100 + "%",
+                      y: "100%",
+                      opacity: 0,
+                    }}
+                    animate={{
+                      y: "-20%",
+                      opacity: [0, 0.6, 0],
+                    }}
+                    transition={{
+                      duration: Math.random() * 2 + 1.5,
+                      delay: Math.random() * 0.3,
+                      repeat: Infinity,
+                      repeatDelay: Math.random() * 1.5,
+                    }}
+                    className={`absolute w-1.5 h-1.5 rounded-full bg-gradient-to-r ${config.color}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Progress bar for auto-hide */}
+            <motion.div
+              initial={{ scaleX: 1 }}
+              animate={{ scaleX: 0 }}
+              transition={{ duration: 4, ease: "linear" }}
+              className={`h-1 bg-gradient-to-r ${config.color} origin-left`}
+            />
+          </motion.div>
+
+          {/* Outer glow ring - smaller effect */}
+          <motion.div
+            animate={{
+              scale: [1, 1.15],
+              opacity: [0.4, 0],
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: Infinity,
+              ease: "easeOut",
+            }}
+            className={`absolute inset-0 border-2 bg-gradient-to-r ${config.color} rounded-2xl`}
+            style={{
+              borderColor: "transparent",
+              background: `linear-gradient(135deg, var(--tw-gradient-stops))`,
+            }}
+          />
+        </motion.div>
+      </>
+    );
+  };
 
   const renderConnectionStatus = () => {
     const statusConfig = {
@@ -411,6 +664,8 @@ const PlayGame = () => {
     return (
       <div className="game-container">
         {contextHolder}
+        <AnimatePresence>{renderMilestoneNotification()}</AnimatePresence>
+
         <div className="floating-shapes">
           <div className="shape shape-1"></div>
           <div className="shape shape-2"></div>
@@ -427,12 +682,6 @@ const PlayGame = () => {
           >
             <div className="game-card p-6 mb-4">
               <Row gutter={[16, 16]} align="middle">
-                <Col xs={24} md={8}>
-                  <div className="score-badge text-center">
-                    <TrophyOutlined className="text-3xl mr-2" />
-                    <span className="text-2xl font-bold">{score} điểm</span>
-                  </div>
-                </Col>
                 <Col xs={24} md={8} className="text-center">
                   <Text strong className="text-xl block mb-2">
                     Câu hỏi {questionNumber}/{totalQuestions}
@@ -680,7 +929,7 @@ const PlayGame = () => {
                       {gameResult.voucher.discountPercentage
                         ? `${gameResult.voucher.discountPercentage}%`
                         : `${gameResult.voucher.value.toLocaleString(
-                            "vi-VN"
+                            "vi-VN",
                           )} VNĐ`}
                     </span>
                   </p>
