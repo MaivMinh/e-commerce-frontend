@@ -72,7 +72,7 @@ const EventDetail = () => {
     } catch (error) {
       console.error("Fetch error:", error);
       messageApi.error(
-        error.response?.data?.message || "Không thể tải thông tin sự kiện này."
+        error.response?.data?.message || "Không thể tải thông tin sự kiện này.",
       );
 
       // Navigate back if error
@@ -88,11 +88,6 @@ const EventDetail = () => {
     }
   }, [eventId]);
 
-  // Copy voucher code
-  const handleCopyVoucher = (code) => {
-    navigator.clipboard.writeText(code);
-  };
-
   // Show voucher detail modal
   const showVoucherDetail = (voucher) => {
     setSelectedVoucher(voucher);
@@ -103,9 +98,8 @@ const EventDetail = () => {
     if (!campaign) return false;
 
     const now = dayjs();
-    // Chuyển đổi Unix timestamp (giây) sang milliseconds
-    const start = dayjs(campaign.startTime * 1000);
-    const end = dayjs(campaign.endTime * 1000);
+    const start = parseDayjsFromTimestamp(campaign.startTime);
+    const end = parseDayjsFromTimestamp(campaign.endTime);
 
     // Nếu sự kiện đã kết thúc
     if (now.isAfter(end)) {
@@ -126,9 +120,8 @@ const EventDetail = () => {
     if (!campaign || !isRegistered) return false;
 
     const now = dayjs();
-    // Chuyển đổi Unix timestamp (giây) sang milliseconds
-    const start = dayjs(campaign.startTime * 1000);
-    const end = dayjs(campaign.endTime * 1000);
+    const start = parseDayjsFromTimestamp(campaign.startTime);
+    const end = parseDayjsFromTimestamp(campaign.endTime);
 
     if (now.isAfter(end)) {
       return false;
@@ -150,8 +143,8 @@ const EventDetail = () => {
     }
 
     const now = dayjs();
-    const start = dayjs(campaign.startTime * 1000);
-    const end = dayjs(campaign.endTime * 1000);
+    const start = parseDayjsFromTimestamp(campaign.startTime);
+    const end = parseDayjsFromTimestamp(campaign.endTime);
 
     if (now.isAfter(end)) {
       return {
@@ -177,7 +170,6 @@ const EventDetail = () => {
       };
     }
 
-
     return {
       canPlay: true,
       message: "Trò chơi đang diễn ra!",
@@ -201,18 +193,9 @@ const EventDetail = () => {
     if (!campaign) return null;
 
     const now = dayjs();
-    const start = dayjs(campaign.startTime * 1000);
-    const end = dayjs(campaign.endTime * 1000);
+    const start = parseDayjsFromTimestamp(campaign.startTime);
+    const end = parseDayjsFromTimestamp(campaign.endTime);
     const minutesUntilStart = start.diff(now, "minute");
-
-    console.log("Debug getRegistrationMessage:", {
-      now: now.format("DD/MM/YYYY HH:mm:ss"),
-      start: start.format("DD/MM/YYYY HH:mm:ss"),
-      end: end.format("DD/MM/YYYY HH:mm:ss"),
-      isRegistered,
-      minutesUntilStart,
-      canPlayGame: canPlayGame(),
-    });
 
     // Đã kết thúc
     if (now.isAfter(end)) {
@@ -249,7 +232,7 @@ const EventDetail = () => {
     if (now.isAfter(start)) {
       return {
         disabled: true,
-        text: "Sự kiện đã bắt đầu",
+        text: "Trò chơi đã bắt đầu",
         type: "warning",
         showAlert: false,
       };
@@ -335,9 +318,8 @@ const EventDetail = () => {
   const getCampaignStatus = () => {
     if (!campaign) return null;
     const now = dayjs();
-    // Chuyển đổi Unix timestamp (giây) sang milliseconds
-    const start = dayjs(campaign.startTime * 1000);
-    const end = dayjs(campaign.endTime * 1000);
+    const start = parseDayjsFromTimestamp(campaign.startTime);
+    const end = parseDayjsFromTimestamp(campaign.endTime);
 
     if (now.isBefore(start)) {
       return {
@@ -360,10 +342,33 @@ const EventDetail = () => {
     }
   };
 
+  const parseDayjsFromTimestamp = (timestamp) => {
+    if (!timestamp) return null;
+
+    // Nếu timestamp là string
+    if (typeof timestamp === "string") {
+      return dayjs(timestamp);
+    }
+
+    // Nếu timestamp là number
+    if (typeof timestamp === "number") {
+      // Kiểm tra xem đã là milliseconds hay chưa
+      // Unix timestamp giây thường < 10^10 (< 10 tỷ)
+      // Nếu nhỏ hơn 10^11 (100 tỷ), coi như là giây
+      const isSeconds = timestamp < 100000000000;
+      return dayjs(isSeconds ? timestamp * 1000 : timestamp);
+    }
+
+    return null;
+  };
+
   // Format date
   const formatDate = (timestamp) => {
-    // Chuyển đổi Unix timestamp (giây) sang milliseconds
-    return dayjs(timestamp * 1000).format("DD/MM/YYYY HH:mm");
+    console.log("formatDate input:", timestamp, "type:", typeof timestamp);
+    const date = parseDayjsFromTimestamp(timestamp);
+    return date && date.isValid()
+      ? date.format("DD/MM/YYYY HH:mm")
+      : "Invalid Date";
   };
 
   // Format currency
@@ -378,9 +383,8 @@ const EventDetail = () => {
   const getCountdownDeadline = () => {
     if (!campaign) return null;
     const now = dayjs();
-    // Chuyển đổi Unix timestamp (giây) sang milliseconds
-    const start = dayjs(campaign.startTime * 1000);
-    const end = dayjs(campaign.endTime * 1000);
+    const start = parseDayjsFromTimestamp(campaign.startTime);
+    const end = parseDayjsFromTimestamp(campaign.endTime);
 
     if (now.isBefore(start)) {
       return start.valueOf();
@@ -392,96 +396,133 @@ const EventDetail = () => {
 
   // Render voucher card
   const renderVoucherCard = (voucher, index) => {
-    // Chuyển đổi Unix timestamp (giây) sang milliseconds nếu cần
-    const expirationDate =
-      typeof voucher.expirationDate === "number"
-        ? dayjs(voucher.expirationDate * 1000)
-        : dayjs(voucher.expirationDate);
-
+    const expirationDate = parseDayjsFromTimestamp(voucher.endDate);
     const isExpired = dayjs().isAfter(expirationDate);
+
+    // Mảng màu gradient đa dạng và đẹp mắt
+    const gradientColors = [
+      { from: "#FF6B6B", to: "#FF8E53", badge: "#FF6B6B", name: "Sunset" },
+      { from: "#4FACFE", to: "#00F2FE", badge: "#4FACFE", name: "Ocean" },
+      { from: "#43E97B", to: "#38F9D7", badge: "#43E97B", name: "Mint" },
+      { from: "#FA709A", to: "#FEE140", badge: "#FA709A", name: "Peach" },
+      { from: "#A8EDEA", to: "#FED6E3", badge: "#A8EDEA", name: "Cotton" },
+      { from: "#FF9A9E", to: "#FECFEF", badge: "#FF9A9E", name: "Rose" },
+      { from: "#667EEA", to: "#764BA2", badge: "#667EEA", name: "Purple" },
+      { from: "#F093FB", to: "#F5576C", badge: "#F093FB", name: "Candy" },
+      { from: "#4FACFE", to: "#43E97B", badge: "#4FACFE", name: "Aqua" },
+      { from: "#FA8BFF", to: "#2BD2FF", badge: "#FA8BFF", name: "Dream" },
+    ];
+
+    const colorScheme = gradientColors[index % gradientColors.length];
 
     return (
       <Card
         hoverable={!isExpired}
-        className={`voucher-card ${
+        className={`voucher-card-animated ${
           isExpired ? "opacity-60" : ""
-        } shadow-md hover:shadow-xl transition-all duration-300`}
+        } shadow-lg hover:shadow-2xl transition-all duration-300`}
+        style={{
+          background: isExpired
+            ? "linear-gradient(135deg, #E0E0E0 0%, #BDBDBD 100%)"
+            : `linear-gradient(135deg, ${colorScheme.from} 0%, ${colorScheme.to} 100%)`,
+          border: "none",
+          borderRadius: "20px",
+          overflow: "hidden",
+        }}
         onClick={() => !isExpired && showVoucherDetail(voucher)}
       >
-        <div className="relative">
+        <div className="relative p-2">
           {/* Voucher Order Badge */}
-          <div className="absolute -top-3 -left-3">
+          <div className="absolute -top-5 -left-5 z-10">
             <Badge
               count={`#${voucher.voucherOrder || index + 1}`}
               style={{
-                backgroundColor: "#722ed1",
+                backgroundColor: isExpired ? "#9E9E9E" : colorScheme.badge,
                 fontSize: "14px",
                 fontWeight: "bold",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
               }}
             />
           </div>
 
           {/* Expired Badge */}
           {isExpired && (
-            <div className="absolute top-0 right-0">
-              <Tag color="red">Đã hết hạn</Tag>
+            <div className="absolute top-2 right-2 z-10">
+              <Tag color="red" style={{ fontWeight: "bold" }}>
+                Đã hết hạn
+              </Tag>
             </div>
           )}
 
-          {/* Discount Badge */}
-          <div className="text-center mb-4">
-            <div className="inline-block bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg px-6 py-3">
-              <Text className="text-3xl font-bold text-white">
-                {voucher.discountPercentage}%
-              </Text>
-              <Text className="text-sm block text-white">GIẢM GIÁ</Text>
-            </div>
+          {/* Background Pattern */}
+          <div className="absolute top-0 left-0 w-full h-full opacity-10">
+            <div className="absolute top-4 right-4 w-32 h-32 rounded-full bg-white"></div>
+            <div className="absolute bottom-4 left-4 w-24 h-24 rounded-full bg-white"></div>
           </div>
 
-          {/* Voucher Code */}
-          <div className="text-center mb-3">
-            <div className="inline-flex items-center bg-gray-100 rounded-lg px-4 py-2 border-2 border-dashed border-indigo-300">
-              <TagOutlined className="text-indigo-600 mr-2" />
-              <Text strong className="text-lg tracking-wider">
-                {voucher.code}
-              </Text>
-              <Button
-                type="text"
-                size="small"
-                icon={<CopyOutlined />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCopyVoucher(voucher.code);
-                }}
-                className="ml-2"
-              />
+          {/* Voucher Title */}
+          {voucher.discountPercentage && voucher.discountPercentage > 0 ? (
+            <div className="text-center mb-4 relative z-5">
+              <div className="inline-block bg-white rounded-2xl px-8 py-4 shadow-lg">
+                <Text
+                  className="text-4xl font-bold"
+                  style={{
+                    background: `linear-gradient(135deg, ${colorScheme.from} 0%, ${colorScheme.to} 100%)`,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  {voucher.discountPercentage}%
+                </Text>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-center mb-4 relative z-5">
+              <div className="inline-block bg-white rounded-2xl px-8 py-4 shadow-lg">
+                <Text
+                  className="text-4xl font-bold"
+                  style={{
+                    background: `linear-gradient(135deg, ${colorScheme.from} 0%, ${colorScheme.to} 100%)`,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  {formatCurrency(voucher.value)}
+                </Text> 
+              </div>
+            </div>
+          )}
 
-          <Divider className="my-3" />
+          <Divider className="my-3 bg-white opacity-30" />
 
           {/* Voucher Details */}
-          <Space direction="vertical" size="small" className="w-full">
-            <div className="flex justify-between items-center">
-              <Text type="secondary">Hạn sử dụng:</Text>
-              <Text strong>{expirationDate.format("DD/MM/YYYY")}</Text>
-            </div>
-          </Space>
+          <div className="relative z-5 bg-white rounded-xl p-4 shadow-inner">
+            <Space direction="vertical" size="small" className="w-full">
+              <div className="flex justify-between items-center">
+                <Text className="text-gray-600 font-medium">
+                  <CalendarOutlined className="mr-2" />
+                  Hạn sử dụng:
+                </Text>
+                <Text strong className="text-gray-800">
+                  {formatDate(voucher?.expirationDate)}
+                </Text>
+              </div>
 
-          {/* Action Button */}
-          {!isExpired && (
-            <Button
-              type="primary"
-              block
-              className="mt-4 bg-gradient-to-r from-indigo-500 to-purple-600 border-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCopyVoucher(voucher.code);
-              }}
-            >
-              Sao chép mã
-            </Button>
-          )}
+              {voucher.maxValue && (
+                <div className="flex justify-between items-center">
+                  <Text className="text-gray-600 font-medium">
+                    <GiftOutlined className="mr-2" />
+                    Giảm tối đa:
+                  </Text>
+                  <Text strong className="text-red-600">
+                    {formatCurrency(voucher.maxValue)}
+                  </Text>
+                </div>
+              )}
+            </Space>
+          </div>
         </div>
       </Card>
     );
@@ -611,7 +652,9 @@ const EventDetail = () => {
                           </Text>
                           <br />
                           <Text type="secondary">
-                            {dayjs(campaign.startTime).fromNow()}
+                            {parseDayjsFromTimestamp(
+                              campaign.startTime,
+                            )?.fromNow()}
                           </Text>
                         </div>
                       ),
@@ -627,7 +670,9 @@ const EventDetail = () => {
                           </Text>
                           <br />
                           <Text type="secondary">
-                            {dayjs(campaign.endTime).fromNow()}
+                            {parseDayjsFromTimestamp(
+                              campaign.endTime,
+                            )?.fromNow()}
                           </Text>
                         </div>
                       ),
@@ -714,7 +759,7 @@ const EventDetail = () => {
                     !registrationStatus?.isPlayButton && (
                       <Alert
                         message="Lưu ý về thời gian đăng ký"
-                        description="Bạn cần đăng ký trước 5 phút trước khi sự kiện bắt đầu"
+                        description="Bạn cần đăng ký trước 5 phút trước khi trò chơi bắt đầu"
                         type="warning"
                         showIcon
                         className="mb-4"
@@ -800,7 +845,7 @@ const EventDetail = () => {
                 <Space direction="vertical" size="large" className="w-full">
                   {campaign.vouchers
                     .sort(
-                      (a, b) => (a.voucherOrder || 0) - (b.voucherOrder || 0)
+                      (a, b) => (a.voucherOrder || 0) - (b.voucherOrder || 0),
                     )
                     .map((voucher, index) => (
                       <div key={voucher.id}>
@@ -823,66 +868,136 @@ const EventDetail = () => {
       <Modal
         title={
           <div className="flex items-center">
-            <GiftOutlined className="text-pink-500 mr-2" />
-            Chi tiết Voucher
+            <GiftOutlined className="text-pink-500 mr-2 text-xl" />
+            <span className="text-lg font-bold">Chi tiết Voucher</span>
           </div>
         }
         open={isVoucherModalVisible}
         onCancel={() => setIsVoucherModalVisible(false)}
         footer={[
-          <Button
-            key="copy"
-            type="primary"
-            icon={<CopyOutlined />}
-            onClick={() => {
-              handleCopyVoucher(selectedVoucher.code);
-              setIsVoucherModalVisible(false);
-            }}
-          >
-            Sao chép mã
+          <Button key="close" onClick={() => setIsVoucherModalVisible(false)}>
+            Đóng
           </Button>,
         ]}
+        width={600}
       >
         {selectedVoucher && (
-          <Descriptions bordered column={1}>
-            <Descriptions.Item label="Mã Voucher">
-              <Text strong code className="text-lg">
-                {selectedVoucher.code}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="Giảm giá">
-              <Text strong className="text-red-600 text-lg">
-                {selectedVoucher.discountPercentage}%
-              </Text>
-            </Descriptions.Item>
-            {selectedVoucher.value && (
-              <Descriptions.Item label="Giá trị giảm">
-                {formatCurrency(selectedVoucher.value)}
+          <div>
+            <Descriptions bordered column={1} size="middle">
+              <Descriptions.Item label="Giảm giá">
+                {selectedVoucher.discountPercentage &&
+                selectedVoucher.discountPercentage > 0 ? (
+                  <Text strong className="text-red-600 text-lg">
+                    {selectedVoucher.discountPercentage}%
+                  </Text>
+                ) : (
+                  <Text strong className="text-gray-500">
+                    Không có
+                  </Text>
+                )}
               </Descriptions.Item>
-            )}
-            {selectedVoucher.maxValue && (
-              <Descriptions.Item label="Giảm tối đa">
-                <Text strong className="text-red-600">
-                  {formatCurrency(selectedVoucher.maxValue)}
-                </Text>
+              <Descriptions.Item label="Giá trị giảm cố định">
+                {selectedVoucher.value && selectedVoucher.value > 0 ? (
+                  <Text strong className="text-red-600 text-lg">
+                    {formatCurrency(selectedVoucher.value)}
+                  </Text>
+                ) : (
+                  <Text strong className="text-gray-500">
+                    Không có
+                  </Text>
+                )}
               </Descriptions.Item>
-            )}
-            <Descriptions.Item label="Hạn sử dụng">
-              {formatDate(selectedVoucher.expirationDate)}
-            </Descriptions.Item>
-            <Descriptions.Item label="Thứ tự">
-              #{selectedVoucher.voucherOrder}
-            </Descriptions.Item>
-          </Descriptions>
+              {selectedVoucher.maxValue && (
+                <Descriptions.Item label="Giảm tối đa">
+                  <Text strong className="text-red-600">
+                    {formatCurrency(selectedVoucher.maxValue)}
+                  </Text>
+                </Descriptions.Item>
+              )}
+              <Descriptions.Item label="Hạn sử dụng">
+                <Text strong>{formatDate(selectedVoucher.expirationDate)}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Thứ tự">
+                <Badge
+                  count={`#${selectedVoucher.voucherOrder}`}
+                  style={{ backgroundColor: "#FA709A" }}
+                />
+              </Descriptions.Item>
+            </Descriptions>
+          </div>
         )}
       </Modal>
       <style jsx>{`
-        .voucher-card {
-          border-radius: 16px;
-          border: 2px solid #f0f0f0;
+        .voucher-card-animated {
+          border-radius: 20px;
+          border: none;
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          position: relative;
+          overflow: hidden;
         }
-        .voucher-card:hover {
-          border-color: #722ed1;
+
+        .voucher-card-animated:hover {
+          transform: translateY(-8px) scale(1.02);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+        }
+
+        .voucher-card-animated::before {
+          content: "";
+          position: absolute;
+          top: -50%;
+          right: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(
+            circle,
+            rgba(255, 255, 255, 0.1) 0%,
+            transparent 70%
+          );
+          animation: shimmer 3s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        @keyframes shimmer {
+          0%,
+          100% {
+            transform: translate(-20%, -20%) scale(1);
+            opacity: 0;
+          }
+          50% {
+            transform: translate(0%, 0%) scale(1.1);
+            opacity: 0.3;
+          }
+        }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .voucher-card-animated {
+          animation: fadeInUp 0.5s ease-out forwards;
+        }
+
+        .voucher-card-animated:nth-child(1) {
+          animation-delay: 0.1s;
+        }
+        .voucher-card-animated:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .voucher-card-animated:nth-child(3) {
+          animation-delay: 0.3s;
+        }
+        .voucher-card-animated:nth-child(4) {
+          animation-delay: 0.4s;
+        }
+        .voucher-card-animated:nth-child(5) {
+          animation-delay: 0.5s;
         }
 
         .register-section {

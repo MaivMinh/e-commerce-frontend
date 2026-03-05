@@ -57,13 +57,16 @@ const Order = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [viewingOrder, setViewingOrder] = useState(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [product, setProduct] = useState(null);
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortDirection, setSortDirection] = useState("desc");
 
   const fetchOrders = async (
     page = currentPage,
     size = pageSize,
     keyword = null,
-    status = null
+    status = null,
+    sort = sortBy,
+    direction = sortDirection
   ) => {
     setLoading(true);
     try {
@@ -72,6 +75,8 @@ const Order = () => {
         size: size,
         keyword: keyword,
         status: status,
+        sortBy: sort,
+        sortDirection: direction,
       });
 
       const data = response.data.data;
@@ -93,7 +98,7 @@ const Order = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [sortBy, sortDirection]);
 
   // Handle client-side search
   const handleSearch = (value) => {
@@ -129,9 +134,28 @@ const Order = () => {
     setCurrentPage(page);
     // pass current searchText as keyword if present
     if (searchText && searchText.trim()) {
-      fetchOrders(page, pageSize, searchText.trim(), status);
+      fetchOrders(page, pageSize, searchText.trim(), status, sortBy, sortDirection);
     } else {
-      fetchOrders(page, pageSize, null, status);
+      fetchOrders(page, pageSize, null, status, sortBy, sortDirection);
+    }
+  };
+
+  const handleTableChange = (pagination, filters, sorter) => {
+    if (sorter.field) {
+      const newSortBy = sorter.field;
+      const newSortDirection = sorter.order === 'ascend' ? 'asc' : 'desc';
+      
+      setSortBy(newSortBy);
+      setSortDirection(newSortDirection);
+      
+      const kw = searchText && searchText.trim() ? searchText.trim() : null;
+      fetchOrders(currentPage, pageSize, kw, status, newSortBy, newSortDirection);
+    } else {
+      // Reset sorting
+      setSortBy('');
+      setSortDirection('desc');
+      const kw = searchText && searchText.trim() ? searchText.trim() : null;
+      fetchOrders(currentPage, pageSize, kw, status, '', 'desc');
     }
   };
 
@@ -259,7 +283,8 @@ const Order = () => {
       dataIndex: "createdAt",
       key: "createdAt",
       render: (date) => formatDate(date),
-      sorter: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+      sorter: true,
+      sortOrder: sortBy === 'createdAt' ? (sortDirection === 'asc' ? 'ascend' : 'descend') : null,
     },
     {
       title: "Tổng tiền",
@@ -268,7 +293,8 @@ const Order = () => {
       render: (total) => (
         <span className="font-medium text-red-600">{formatPrice(total)}</span>
       ),
-      sorter: (a, b) => a.total - b.total,
+      sorter: true,
+      sortOrder: sortBy === 'total' ? (sortDirection === 'asc' ? 'ascend' : 'descend') : null,
     },
     {
       title: "Trạng thái",
@@ -328,16 +354,12 @@ const Order = () => {
               setCurrentPage(1);
               const kw =
                 searchText && searchText.trim() ? searchText.trim() : null;
-              fetchOrders(1, pageSize, kw, value || null);
+              fetchOrders(1, pageSize, kw, value || null, sortBy, sortDirection);
             }}
             options={[
               { label: "Tất cả", value: null },
-              { label: "Đã tạo", value: "CREATED" },
-              { label: "Đã xác nhận", value: "CONFIRMED" },
-              { label: "Đã giao", value: "DELIVERED" },
               { label: "Thành công", value: "SUCCESS" },
-              { label: "Thất bại", value: "CANCELLED" },
-              { label: "Đã hủy", value: "ROLLBACK" },
+              { label: "Thất bại", value: "CANCELLED" }
             ]}
             style={{ width: 200 }}
           />
@@ -351,7 +373,7 @@ const Order = () => {
               const kw = (value || "").trim();
               setSearchText(kw);
               setCurrentPage(1);
-              fetchOrders(1, pageSize, kw, status);
+              fetchOrders(1, pageSize, kw, status, sortBy, sortDirection);
             }}
             onChange={(e) => {
               setSearchText(e.target.value);
@@ -369,6 +391,7 @@ const Order = () => {
             rowKey="id"
             loading={loading}
             pagination={false}
+            onChange={handleTableChange}
             locale={{
               emptyText: searchText ? (
                 <Empty

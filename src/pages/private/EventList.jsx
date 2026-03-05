@@ -46,7 +46,8 @@ const EventList = () => {
 
   // Search filters
   const [searchName, setSearchName] = useState("");
-  const [dateRange, setDateRange] = useState(null);
+  const [startTimeRange, setStartTimeRange] = useState(null);
+  const [endTimeRange, setEndTimeRange] = useState(null);
 
   // Fetch campaigns
   const fetchCampaigns = async (page = 1) => {
@@ -56,11 +57,17 @@ const EventList = () => {
         page: page - 1,
         size: pageSize,
         name: searchName || null,
-        fromStartTime: dateRange?.[0]
-          ? dateRange[0].startOf("day").toISOString()
+        fromStartTime: startTimeRange?.[0]
+          ? startTimeRange[0].startOf("day").toISOString()
           : null,
-        toStartTime: dateRange?.[1]
-          ? dateRange[1].endOf("day").toISOString()
+        toStartTime: startTimeRange?.[1]
+          ? startTimeRange[1].endOf("day").toISOString()
+          : null,
+        fromEndTime: endTimeRange?.[0]
+          ? endTimeRange[0].startOf("day").toISOString()
+          : null,
+        toEndTime: endTimeRange?.[1]
+          ? endTimeRange[1].endOf("day").toISOString()
           : null,
       };
 
@@ -93,7 +100,8 @@ const EventList = () => {
   // Handle clear filters
   const handleClearFilters = () => {
     setSearchName("");
-    setDateRange(null);
+    setStartTimeRange(null);
+    setEndTimeRange(null);
     setTimeout(() => fetchCampaigns(1), 0);
   };
 
@@ -281,7 +289,8 @@ const EventList = () => {
             wrap={false}
           >
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={24} md={12} lg={10}>
+              {/* Search Name */}
+              <Col xs={24} sm={24} md={16} lg={18}>
                 <Search
                   placeholder="Tìm kiếm tên sự kiện..."
                   allowClear
@@ -296,17 +305,9 @@ const EventList = () => {
                   onSearch={handleSearch}
                 />
               </Col>
-              <Col xs={24} sm={24} md={12} lg={10}>
-                <RangePicker
-                  size="large"
-                  className="w-full"
-                  placeholder={["Từ ngày", "Đến ngày"]}
-                  format="DD/MM/YYYY"
-                  value={dateRange}
-                  onChange={setDateRange}
-                />
-              </Col>
-              <Col xs={24} sm={24} md={24} lg={4}>
+
+              {/* Clear Filters Button */}
+              <Col xs={24} sm={24} md={8} lg={6}>
                 <Button
                   size="large"
                   icon={<ClearOutlined />}
@@ -315,6 +316,44 @@ const EventList = () => {
                 >
                   Xóa bộ lọc
                 </Button>
+              </Col>
+            </Row>
+
+            <Row gutter={[16, 16]}>
+              {/* Start Time Range */}
+              <Col xs={24} sm={24} md={12} lg={12}>
+                <div>
+                  <Text className="block mb-2 text-gray-600 font-medium">
+                    <CalendarOutlined className="mr-1" />
+                    Thời gian bắt đầu:
+                  </Text>
+                  <RangePicker
+                    size="large"
+                    className="w-full"
+                    placeholder={["Từ ngày", "Đến ngày"]}
+                    format="DD/MM/YYYY"
+                    value={startTimeRange}
+                    onChange={setStartTimeRange}
+                  />
+                </div>
+              </Col>
+
+              {/* End Time Range */}
+              <Col xs={24} sm={24} md={12} lg={12}>
+                <div>
+                  <Text className="block mb-2 text-gray-600 font-medium">
+                    <ClockCircleOutlined className="mr-1" />
+                    Thời gian kết thúc:
+                  </Text>
+                  <RangePicker
+                    size="large"
+                    className="w-full"
+                    placeholder={["Từ ngày", "Đến ngày"]}
+                    format="DD/MM/YYYY"
+                    value={endTimeRange}
+                    onChange={setEndTimeRange}
+                  />
+                </div>
               </Col>
             </Row>
           </Space>
@@ -357,13 +396,13 @@ const EventList = () => {
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={
                 <span className="text-gray-500 text-lg">
-                  {searchName || dateRange
+                  {searchName || startTimeRange || endTimeRange
                     ? "Không tìm thấy sự kiện phù hợp"
                     : "Chưa có sự kiện nào"}
                 </span>
               }
             >
-              {(searchName || dateRange) && (
+              {(searchName || startTimeRange || endTimeRange) && (
                 <Button type="primary" onClick={handleClearFilters}>
                   Xóa bộ lọc
                 </Button>

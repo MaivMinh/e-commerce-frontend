@@ -118,6 +118,7 @@ const Checkout = () => {
       const promotion = JSON.parse(
         localStorage.getItem("applied-promotion") || "null"
       );
+      console.log(promotion)
       setAppliedPromotion(promotion);
     };
 
@@ -357,7 +358,7 @@ const Checkout = () => {
         discount: calculateDiscount(),
         total: calculateTotal(),
         paymentMethod: getSelectedPaymentMethod().code,
-        promotionId: appliedPromotion?.isRedeemedVoucher === false ? appliedPromotion.id : null,
+        promotionId: appliedPromotion?.isRedeemedVoucher === null ||!appliedPromotion?.isRedeemedVoucher ? appliedPromotion.id : null,
         voucherId: appliedPromotion?.isRedeemedVoucher === true ? appliedPromotion.id : null,
         currency: "VND",
         note: form.getFieldValue("note") || "",

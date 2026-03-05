@@ -1,34 +1,31 @@
-import React, { useState, useEffect, useContext } from "react";
-import {
-  Typography,
-  Button,
-  InputNumber,
-  Divider,
-  Input,
-  Select,
-  Radio,
-  Space,
-  Table,
-  Image,
-  Tag,
-  notification,
-  Empty,
-} from "antd";
 import {
   DeleteOutlined,
-  ShoppingOutlined,
-  RightOutlined,
-  LeftOutlined,
-  ShoppingCartOutlined,
-  TagOutlined,
   IssuesCloseOutlined,
+  LeftOutlined,
+  RightOutlined,
+  ShoppingCartOutlined,
+  ShoppingOutlined,
+  TagOutlined,
 } from "@ant-design/icons";
+import {
+  Button,
+  Divider,
+  Empty,
+  Image,
+  Input,
+  InputNumber,
+  Select,
+  Table,
+  Tag,
+  Typography,
+  notification,
+} from "antd";
+import { useContext, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import apiClient from "../../services/apiClient";
-import { CartContext } from "../../context/CartContext";
-import { AuthContext } from "../../context/AuthContext";
-import { keycloak } from "../../services/keycloak";
 import { KeycloakContext } from "../../components/KeycloakProvider";
+import { AuthContext } from "../../context/AuthContext";
+import apiClient from "../../services/apiClient";
+import { keycloak } from "../../services/keycloak";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -44,7 +41,7 @@ const Cart = () => {
   const [promotions, setPromotions] = useState([]);
   const [api, contextHolder] = notification.useNotification();
   const shippingFee = 30000;
-  const {username} = useContext(KeycloakContext);
+  const { username } = useContext(KeycloakContext);
 
   // Fetch cart items (mocked)
   useEffect(() => {
@@ -72,26 +69,7 @@ const Cart = () => {
       try {
         let response = await apiClient.get("/api/promotions");
         const result = response.data.data.promotions || [];
-        response = await apiClient.get(`/api/vouchers/${username}/redeem`);
-        const redeemedVouchers = response.data.data || [];
-        const savedPromotions = [
-          ...result,
-          ...redeemedVouchers.map((voucher) => ({
-            code: voucher.code,
-            discountValue: voucher.discountPercentage,
-            endDate: voucher.endDate,
-            value: voucher.discountPercentage !== null ? voucher.discountPercentage : voucher.value,
-            type: voucher.discountPercentage !== null ? "percentage" : "fixed",
-            id: voucher.id,
-            minOrderValue: voucher.minOrderValue,
-            startDate: voucher.startDate,
-            status: voucher.status,
-            usageCount: 1,
-            usageLimit: null,
-            isRedeemedVoucher: true
-          }))
-        ]
-        setPromotions(savedPromotions);
+        setPromotions(result);
       } catch (error) {
         console.error("Failed to fetch promotions:", error);
       }
@@ -99,7 +77,36 @@ const Cart = () => {
     fetchPromotions();
   }, []);
 
-
+  useEffect(() => {
+    const fetchRedeemedVouchers = async () => {
+      try {
+        const response = await apiClient.get(
+          `/api/vouchers/${username}/redeem`,
+        );
+        const redeemedVouchers = response.data.data || [];
+        const savedPromotions = [
+          ...redeemedVouchers.map((voucher) => ({
+            id: voucher.id,
+            code: voucher.code,
+            type: voucher.type,
+            discountValue:
+              voucher.discountPercentage !== null
+                ? voucher.discountPercentage
+                : voucher.value,
+            startDate: voucher.startDate,
+            endDate: voucher.expirationDate,
+            usageLimit: 1,
+            usageCount: 0,
+            status: voucher.status,
+          })),
+        ];
+        setPromotions((prev) => [...prev, ...savedPromotions]);
+      } catch (error) {
+        console.error("Failed to fetch promotions:", error);
+      }
+    };
+    fetchRedeemedVouchers();
+  }, []);
 
   const openErrorNotification = (message) => {
     api.open({
@@ -130,8 +137,8 @@ const Cart = () => {
         .then((response) => {
           setCartItems((prev) =>
             prev.map((item) =>
-              item.id === cartItemId ? { ...item, quantity: value } : item
-            )
+              item.id === cartItemId ? { ...item, quantity: value } : item,
+            ),
           );
         })
         .catch((error) => {
@@ -212,12 +219,12 @@ const Cart = () => {
       return;
     }
     const selectedCartItems = cartItems.filter((item) =>
-      selectedItems.includes(item.id)
+      selectedItems.includes(item.id),
     );
     localStorage.removeItem("selected-cart-items");
     localStorage.setItem(
       "selected-cart-items",
-      JSON.stringify(selectedCartItems)
+      JSON.stringify(selectedCartItems),
     );
     localStorage.removeItem("applied-promotion");
     localStorage.setItem("applied-promotion", JSON.stringify(appliedPromotion));
@@ -230,7 +237,7 @@ const Cart = () => {
       .filter((item) => selectedItems.includes(item.id))
       .reduce(
         (total, item) => total + item.productVariantDTO.price * item.quantity,
-        0
+        0,
       );
   };
 
@@ -239,7 +246,7 @@ const Cart = () => {
     if (!appliedPromotion) return 0;
     const subtotal = calculateSubtotal();
     if (appliedPromotion.type === "percentage") {
-      return subtotal * appliedPromotion.discountValue / 100;
+      return (subtotal * appliedPromotion.discountValue) / 100;
     } else if (appliedPromotion.type === "fixed") {
       return appliedPromotion.discountValue;
     } else if (appliedPromotion.type === "shipping") {

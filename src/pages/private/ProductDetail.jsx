@@ -110,7 +110,7 @@ const ProductDetail = () => {
       };
       const res = await apiClient.post(`/api/reviews/search`, filterParams);
       // Cập nhật đúng cấu trúc dữ liệu
-      console.log(res.data.data.content)
+      console.log(res.data.data.content);
       setReviews(res.data.data.content || []);
       // Cập nhật stats nếu backend trả về
       if (res.data.data.totalElements) {
@@ -161,7 +161,7 @@ const ProductDetail = () => {
       await apiClient.post("/api/reviews", data);
       openSuccessNofitication(
         "Đánh giá thành công",
-        "Cảm ơn bạn đã đánh giá sản phẩm!"
+        "Cảm ơn bạn đã đánh giá sản phẩm!",
       );
       setIsReviewModalOpen(false);
       reviewForm.resetFields();
@@ -178,7 +178,7 @@ const ProductDetail = () => {
   };
 
   useEffect(() => {
-      fetchReviews();
+    fetchReviews();
   }, [product?.id, reviewPage, reviewFilter]);
 
   // Format thời gian
@@ -268,13 +268,13 @@ const ProductDetail = () => {
         setProduct(product);
 
         const variantsResponse = await apiClient.get(
-          `/api/products/${product.id}/variants`
+          `/api/products/${product.id}/variants`,
         );
         const variants = variantsResponse.data.data;
         setVariants(variants);
 
         const sizes = Array.from(
-          new Set(variants.map((variant) => variant.size))
+          new Set(variants.map((variant) => variant.size)),
         );
         const colors = {};
         variants.forEach((variant) => {
@@ -295,7 +295,7 @@ const ProductDetail = () => {
             }
             acc[variant.size][variant.colorName] = variant.price;
             return acc;
-          }, {})
+          }, {}),
         );
         setLoading(false);
       } catch (error) {
@@ -327,9 +327,9 @@ const ProductDetail = () => {
     ///Lấy số lượng hiện tại của sản phẩm. Ứng với size và color đã chọn
     if (selectedSize && colorName) {
       const variant = variants.find(
-        (v) => v.size === selectedSize && v.colorName === colorName
+        (v) => v.size === selectedSize && v.colorName === colorName,
       );
-      console.log(variant)
+      console.log(variant);
       setCurrentQuantity(variant ? variant.quantity : 0);
     } else {
       console.log("Chưa chọn size hoặc color", selectedSize, colorName);
@@ -342,18 +342,18 @@ const ProductDetail = () => {
     setIsAddToCartProcessing(true);
     if (!selectedSize || !selectedColor) {
       openErrorNotification(
-        "Vui lòng chọn kích thước và màu sắc trước khi thêm vào giỏ hàng."
+        "Vui lòng chọn kích thước và màu sắc trước khi thêm vào giỏ hàng.",
       );
       setIsAddToCartProcessing(false);
       return;
     }
     /// Lấy thông tin variant hiện tại dựa trên size và color đã chọn
     const variant = variants.find(
-      (v) => v.size === selectedSize && v.colorName === selectedColor
+      (v) => v.size === selectedSize && v.colorName === selectedColor,
     );
     if (!variant) {
       openErrorNotification(
-        "Không tìm thấy sản phẩm với kích thước và màu sắc đã chọn."
+        "Không tìm thấy sản phẩm với kích thước và màu sắc đã chọn.",
       );
       setIsAddToCartProcessing(false);
       return;
@@ -368,13 +368,10 @@ const ProductDetail = () => {
 
       const userId = getUserId();
 
-      const response = await apiClient.post(
-        `/api/carts/cart-items`,
-        data
-      );
+      const response = await apiClient.post(`/api/carts/cart-items`, data);
       openSuccessNofitication(
         "Đã thêm vào giỏ hàng",
-        `Đã thêm ${product.name} (${selectedSize}, ${selectedColor}) x${quantity} vào giỏ hàng.`
+        `Đã thêm ${product.name} (${selectedSize}, ${selectedColor}) x${quantity} vào giỏ hàng.`,
       );
       setIsAddToCart(true);
     } catch (error) {
@@ -479,7 +476,7 @@ const ProductDetail = () => {
                           onZoomIn,
                           onReset,
                         },
-                      }
+                      },
                     ) => (
                       <Space size={12} className="toolbar-wrapper">
                         <LeftOutlined
@@ -590,7 +587,7 @@ const ProductDetail = () => {
                     </Button>
                   ) : (
                     <Button
-                      color="default"
+                      color="red"
                       size="large"
                       variant="solid"
                       icon={<ShoppingCartOutlined />}
@@ -609,19 +606,13 @@ const ProductDetail = () => {
                   )}
                   <div className="flex flex-row justify-start items-center gap-5">
                     <Button
+                      color="red"
                       size="large"
-                      style={{ backgroundColor: "#fff" }}
+                      variant="outlined"
                       icon={<HeartOutlined />}
                       className="min-w-[50px] h-12 text-red-500 border-red-200 hover:border-red-500"
                     >
                       Yêu thích
-                    </Button>
-                    <Button
-                      size="large"
-                      icon={<ShareAltOutlined />}
-                      className="min-w-[50px] h-12"
-                    >
-                      Chia sẻ
                     </Button>
                   </div>
                 </div>
@@ -759,7 +750,7 @@ const ProductDetail = () => {
                       percent={Math.round(
                         (reviewStats.distribution[5 - star] /
                           reviewStats.total) *
-                          100
+                          100,
                       )}
                       size="small"
                       strokeColor="#4F46E5"
@@ -960,7 +951,7 @@ const ProductDetail = () => {
                         formData,
                         {
                           headers: { "Content-Type": "multipart/form-data" },
-                        }
+                        },
                       );
                       const url = res.data.data.url;
                       // Thêm url vào reviewImages
@@ -974,7 +965,7 @@ const ProductDetail = () => {
                   }}
                   onRemove={(file) => {
                     setReviewImages((prev) =>
-                      prev.filter((url) => url !== (file.url || file.thumbUrl))
+                      prev.filter((url) => url !== (file.url || file.thumbUrl)),
                     );
                   }}
                   fileList={reviewImages.map((url, idx) => ({
