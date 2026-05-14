@@ -46,7 +46,7 @@ const EventList = () => {
 
   // Search filters
   const [searchName, setSearchName] = useState("");
-  const [startTimeRange, setStartTimeRange] = useState(null);
+  const [startTimeRange, setStartTimeRange] = useState([dayjs(), dayjs()]);
   const [endTimeRange, setEndTimeRange] = useState(null);
 
   // Fetch campaigns
@@ -59,7 +59,7 @@ const EventList = () => {
         name: searchName || null,
         fromStartTime: startTimeRange?.[0]
           ? startTimeRange[0].startOf("day").toISOString()
-          : null,
+          : dayjs().startOf("day").toISOString(),
         toStartTime: startTimeRange?.[1]
           ? startTimeRange[1].endOf("day").toISOString()
           : null,

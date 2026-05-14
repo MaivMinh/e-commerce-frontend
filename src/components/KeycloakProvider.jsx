@@ -5,13 +5,26 @@ export const KeycloakContext = React.createContext({
   authenticated: null,
   loading: null,
   username: null,
+  profile: {
+    email: null,
+    familyName: null,
+    givenName: null,
+    userId: null,
+    username: null,
+  },
 });
 
 export const KeycloakProvider = ({ children }) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState(null);
-
+  const [profile, setProfile] = useState({
+    email: null,
+    familyName: null,
+    givenName: null,
+    userId: null,
+    username: null,
+  });
 
   useEffect(() => {
     // Đổi từ sessionStorage sang localStorage
@@ -19,11 +32,11 @@ export const KeycloakProvider = ({ children }) => {
     const storedRefreshToken = localStorage.getItem("kc_refreshToken");
     const storedIdToken = localStorage.getItem("kc_idToken");
 
-
     keycloak
       .init({
         onLoad: "check-sso", // ✅ Đổi từ "login-required" sang "check-sso"
-        silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
+        silentCheckSsoRedirectUri:
+          window.location.origin + "/silent-check-sso.html",
         checkLoginIframe: false,
         pkceMethod: "S256",
         // Khôi phục tất cả tokens
@@ -33,13 +46,20 @@ export const KeycloakProvider = ({ children }) => {
       })
       .then((auth) => {
         setAuthenticated(auth);
-
         if (auth && keycloak.token) {
           // Lưu tất cả tokens vào localStorage
           localStorage.setItem("kc_token", keycloak.token);
           localStorage.setItem("kc_refreshToken", keycloak.refreshToken);
           localStorage.setItem("kc_idToken", keycloak.idToken);
-          setUsername(keycloak.tokenParsed?.preferred_username || null);
+          setUsername(keycloak.idTokenParsed?.preferred_username || null);
+          setProfile((prev) => ({
+            ...prev,
+            email: keycloak.idTokenParsed?.email || null,
+            familyName: keycloak.idTokenParsed?.family_name || null,
+            givenName: keycloak.idTokenParsed?.given_name || null,
+            userId: keycloak.idTokenParsed?.sub || null,
+            username: keycloak.idTokenParsed?.preferred_username || null,
+          }));
 
           // 🕑 Setup auto-refresh với cleanup
           const refreshInterval = setInterval(() => {
@@ -50,7 +70,10 @@ export const KeycloakProvider = ({ children }) => {
                   console.log("🔄 Token refreshed");
                   // Cập nhật localStorage với tokens mới
                   localStorage.setItem("kc_token", keycloak.token);
-                  localStorage.setItem("kc_refreshToken", keycloak.refreshToken);
+                  localStorage.setItem(
+                    "kc_refreshToken",
+                    keycloak.refreshToken,
+                  );
                   localStorage.setItem("kc_idToken", keycloak.idToken);
                 }
               })
@@ -111,7 +134,15 @@ export const KeycloakProvider = ({ children }) => {
   }, []);
 
   return (
-    <KeycloakContext.Provider value={{ keycloak, authenticated: authenticated, loading: loading, username: username }}>
+    <KeycloakContext.Provider
+      value={{
+        keycloak,
+        authenticated: authenticated,
+        loading: loading,
+        username: username,
+        profile: profile,
+      }}
+    >
       {children}
     </KeycloakContext.Provider>
   );

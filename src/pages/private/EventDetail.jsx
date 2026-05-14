@@ -3,10 +3,8 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  CopyOutlined,
   GiftOutlined,
   HomeOutlined,
-  TagOutlined,
   TrophyOutlined,
 } from "@ant-design/icons";
 import {

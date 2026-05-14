@@ -136,7 +136,6 @@ const PlayGame = () => {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log("Received message:", data);
           handleWebSocketMessage(data);
         } catch (error) {
           console.error("Error parsing message:", error);
@@ -163,7 +162,6 @@ const PlayGame = () => {
   const sendMessage = (message) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
-      console.log("Sent message:", message);
     } else {
       console.error("WebSocket is not connected");
       messageApi.error("Mất kết nối. Đang thử kết nối lại...");
@@ -171,7 +169,6 @@ const PlayGame = () => {
   };
 
   const handleWebSocketMessage = (data) => {
-    console.log("Received data from server: ", data);
     const payload = data.payload || {};
 
     switch (data.type) {
@@ -223,7 +220,6 @@ const PlayGame = () => {
         break;
 
       case "GAME_RESULT":
-        console.log(payload);
         setGameState("FINISHED");
         setShowConfetti(true);
         const vouchers = data.vouchers || [];
@@ -271,7 +267,6 @@ const PlayGame = () => {
         break;
 
       case "WAITING":
-        console.log("⏳ Waiting state");
         setGameState("WAITING");
         messageApi.info(data.message || "Đang chờ game bắt đầu...");
         break;
@@ -287,21 +282,13 @@ const PlayGame = () => {
     setSelectedAnswer(answerId);
     setIsAnswerSubmitted(true);
 
-    console.log("clicked:", answerId, typeof answerId);
-    console.log(
-      "answers:",
-      currentAnswers.map((a) => [a.answerId, typeof a.answerId]),
-    );
-
     const correct =
       currentAnswers.find((ans) => ans.answerId === Number(answerId))
         ?.correct ?? false;
 
     if (correct) {
-      console.log("Answer correct");
       setPendingScore(currentScore);
     } else {
-      console.log("Answer wrong");
       setPendingScore(0);
     }
 

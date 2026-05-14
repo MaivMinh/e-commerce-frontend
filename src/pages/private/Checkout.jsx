@@ -48,7 +48,7 @@ const Checkout = () => {
   const [showQRModal, setShowQRModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [orderId, setOrderId] = useState(
-    "ORD" + Math.floor(100000 + Math.random() * 900000)
+    "ORD" + Math.floor(100000 + Math.random() * 900000),
   );
   const [showFailureModal, setShowFailureModal] = useState(false);
   const [stockErrorMessage, setStockErrorMessage] = useState("");
@@ -76,7 +76,7 @@ const Checkout = () => {
       const productVariantId = productVariant.id;
 
       const response = await apiClient.get(
-        `/api/products/find-by-product-variant?productVariantId=${productVariantId}`
+        `/api/products/find-by-product-variant?productVariantId=${productVariantId}`,
       );
       const product = response.data.data;
       setProductId(product);
@@ -96,7 +96,7 @@ const Checkout = () => {
     // Load selected cart items
     const loadCartItems = () => {
       const selectedCartItems = JSON.parse(
-        localStorage.getItem("selected-cart-items") || "[]"
+        localStorage.getItem("selected-cart-items") || "[]",
       );
 
       if (selectedCartItems.length === 0) {
@@ -116,9 +116,9 @@ const Checkout = () => {
     // Load applied promotion
     const loadPromotion = () => {
       const promotion = JSON.parse(
-        localStorage.getItem("applied-promotion") || "null"
+        localStorage.getItem("applied-promotion") || "null",
       );
-      console.log(promotion)
+      console.log(promotion);
       setAppliedPromotion(promotion);
     };
 
@@ -248,7 +248,7 @@ const Checkout = () => {
   const calculateSubtotal = () => {
     return cartItems.reduce(
       (total, item) => total + item.productVariantDTO.price * item.quantity,
-      0
+      0,
     );
   };
 
@@ -354,12 +354,15 @@ const Checkout = () => {
       // Chuẩn bị dữ liệu đơn hàng
       const orderPayload = {
         shippingAddressId: selectedAddressInfo.id,
-        subtotal: calculateSubtotal(),
+        subTotal: calculateSubtotal(),
         discount: calculateDiscount(),
         total: calculateTotal(),
         paymentMethod: getSelectedPaymentMethod().code,
-        promotionId: appliedPromotion?.isRedeemedVoucher === null ||!appliedPromotion?.isRedeemedVoucher ? appliedPromotion.id : null,
-        voucherId: appliedPromotion?.isRedeemedVoucher === true ? appliedPromotion.id : null,
+        promotionId: appliedPromotion?.isPromotion
+          ? appliedPromotion?.id
+          : null,
+        voucherId:
+          appliedPromotion?.isPromotion === false ? appliedPromotion.id : null,
         currency: "VND",
         note: form.getFieldValue("note") || "",
         orderItemDtos: cartItems.map((item) => ({
@@ -402,11 +405,11 @@ const Checkout = () => {
         error.response?.data?.message?.includes("không đủ số lượng trong kho")
       ) {
         setStockErrorMessage(
-          "Sản phẩm trong giỏ hàng của bạn hiện không đủ số lượng trong kho."
+          "Sản phẩm trong giỏ hàng của bạn hiện không đủ số lượng trong kho.",
         );
       } else {
         setStockErrorMessage(
-          error.response?.data?.message || "Có lỗi xảy ra khi xử lý đơn hàng."
+          error.response?.data?.message || "Có lỗi xảy ra khi xử lý đơn hàng.",
         );
       }
 
@@ -792,7 +795,7 @@ const Checkout = () => {
                       <div className="text-right">
                         <div className="font-medium">
                           {formatPrice(
-                            item.productVariantDTO.price * item.quantity
+                            item.productVariantDTO.price * item.quantity,
                           )}
                         </div>
                         {item.productVariantDTO.originalPrice >
@@ -800,7 +803,7 @@ const Checkout = () => {
                           <div className="text-xs line-through text-gray-500">
                             {formatPrice(
                               item.productVariantDTO.originalPrice *
-                                item.quantity
+                                item.quantity,
                             )}
                           </div>
                         )}

@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useContext } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useContext,
+  useCallback,
+} from "react";
 import {
   Typography,
   Card,
@@ -20,7 +26,6 @@ import {
 import {
   UserOutlined,
   EditOutlined,
-  LockOutlined,
   EnvironmentOutlined,
   PlusOutlined,
   CheckCircleOutlined,
@@ -32,6 +37,7 @@ import moment from "moment";
 import apiClient from "../../services/apiClient";
 import dayjs from "dayjs";
 import { keycloak } from "../../services/keycloak";
+import { KeycloakContext } from "../../components/KeycloakProvider";
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -41,13 +47,11 @@ const Profile = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileForm] = Form.useForm();
-  const [passwordForm] = Form.useForm();
   const [addressForm] = Form.useForm();
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
   const [savingAddress, setSavingAddress] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
 
   // Avatar related states
   const [avatarLoading, setAvatarLoading] = useState(false);
@@ -56,63 +60,86 @@ const Profile = () => {
   const fileInputRef = useRef(null);
   const [avatarToBeRemoved, setAvatarToBeRemoved] = useState(false);
   const [addresses, setAddresses] = useState([]);
+  const { profile, authenticated } = useContext(KeycloakContext);
 
-  useEffect(() => {
-    const getAddresses = async () => {
+  const createUserProfile = useCallback(async () => {
+    const fallbackUsername =
+      profile?.username || keycloak.idTokenParsed?.preferred_username;
+    const email = profile?.email || keycloak.idTokenParsed?.email || "";
+    const givenName =
+      profile?.givenName || keycloak.idTokenParsed?.given_name || "";
+    const familyName =
+      profile?.familyName || keycloak.idTokenParsed?.family_name || "";
+    const fullName = `${familyName} ${givenName}`.trim() || fallbackUsername;
+
+    if (!fallbackUsername) {
+      throw new Error("Không thể tạo profile do thiếu username");
+    }
+
+    await apiClient.post("/api/users/profile", {
+      username: fallbackUsername,
+      emails: email,
+      fullName,
+    });
+  }, [profile]);
+
+  const fetchUserProfile = useCallback(
+    async (allowCreate = true) => {
       try {
-        const response = await apiClient.get("/api/addresses");
-        setAddresses(response.data.data);
+        const response = await apiClient.get("/api/users/profile");
+        const data = response.data.data;
+        setUserProfile(data);
+
+        profileForm.setFieldsValue({
+          fullName: data.fullName,
+          email: data.emails,
+          username: data.username,
+          gender: data.gender,
+          birthDate: data.birthDate ? dayjs(data.birthDate) : null,
+        });
+
+        return data;
       } catch (error) {
-        console.error("Error fetching addresses:", error);
+        if (error?.response?.status === 404 && allowCreate) {
+          await createUserProfile();
+          return fetchUserProfile(false);
+        }
+
+        throw error;
       }
-    };
-    if (keycloak.authenticated) {
-      getAddresses();
-    }
-  }, [])
-  
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
+    },
+    [createUserProfile, profileForm],
+  );
 
-  const fetchUserProfile = async () => {
-    setLoading(true);
-    try {
-      const response = await apiClient.get("/api/users/profile");
-      const data = response.data.data;
-
-      // Đảm bảo avatar có giá trị để tương thích với code cũ
-      const updatedData = {
-        ...data,
-        avatar: data.avatar || data.avatar,
-      };
-
-      setUserProfile(updatedData);
-
-      // Set form initial values
-      profileForm.setFieldsValue({
-        fullName: data.fullName,
-        email: data.email,
-        username: data.username,
-        gender: data.gender,
-        birthDate: data.birthDate ? dayjs(data.birthDate) : null,
-      });
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      message.error("Không thể tải thông tin cá nhân");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUserAddresses = async () => {
+  const fetchUserAddresses = useCallback(async () => {
     try {
       const response = await apiClient.get("/api/addresses");
       setAddresses(response.data.data);
     } catch (error) {
       console.error("Error fetching addresses:", error);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!authenticated) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await Promise.all([fetchUserProfile(), fetchUserAddresses()]);
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+        message.error("Không thể tải thông tin người dùng");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [authenticated, fetchUserProfile, fetchUserAddresses]);
 
   const handleAvatarClick = () => {
     fileInputRef.current.click();
@@ -166,30 +193,29 @@ const Profile = () => {
 
       // Gọi API upload ảnh
       const uploadResponse = await apiClient.post(
-        "/api/files/images/upload",
+        "/api/files/upload",
         formData,
         {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        }
+        },
       );
 
       // Lấy URL ảnh từ response
-      const imageUrl = uploadResponse.data.data.url;
+      const imageUrl = uploadResponse.data.data.data;
 
       // Bước 2: Cập nhật profile với URL ảnh mới
-      const updateResponse = await apiClient.put("/api/users", {
+      await apiClient.put("/api/users/profile", {
         ...userProfile,
         avatar: imageUrl, // Cập nhật trường avatar trong profileDTO
       });
 
       // Cập nhật state UI sau khi cập nhật thành công
-      setUserProfile({
-        ...userProfile,
+      setUserProfile((prev) => ({
+        ...prev,
         avatar: imageUrl,
-        avatar: imageUrl, // Giữ avatar cho UI nếu cần
-      });
+      }));
 
       message.success("Cập nhật ảnh đại diện thành công");
 
@@ -203,52 +229,21 @@ const Profile = () => {
     }
   };
 
-  // Xử lý xóa avatar
-  const handleRemoveAvatar = () => {
-    // Hiển thị xác nhận
-    Modal.confirm({
-      title: "Xóa ảnh đại diện",
-      content:
-        'Bạn có chắc muốn xóa ảnh đại diện? Thay đổi sẽ được áp dụng sau khi bạn nhấn "Cập nhật thông tin".',
-      okText: "Xác nhận xóa",
-      cancelText: "Hủy",
-      okButtonProps: { danger: true },
-      onOk: () => {
-        console.log("Xác nhận xóa avatar"); // Log để debug
-
-        // Chỉ đánh dấu avatar sẽ bị xóa, không gửi API ngay
-        setAvatarToBeRemoved(true);
-
-        // Cập nhật UI để hiển thị avatar đã bị đánh dấu xóa
-        setUserProfile((prevProfile) => {
-          console.log("Cập nhật profile với tempAvatarRemoved: true"); // Log để debug
-          return {
-            ...prevProfile,
-            tempAvatarRemoved: true,
-          };
-        });
-
-        message.info("Nhấn 'Cập nhật thông tin' để xác nhận thay đổi");
-      },
-    });
-  };
-
   const handleDirectRemoveAvatar = async () => {
     setAvatarLoading(true);
     try {
       // Gọi API cập nhật trực tiếp
-      const response = await apiClient.put("/api/users", {
+      await apiClient.put("/api/users", {
         ...userProfile,
         avatar: null,
       });
 
       // Cập nhật UI
-      setUserProfile({
-        ...userProfile,
-        avatar: null,
+      setUserProfile((prev) => ({
+        ...prev,
         avatar: null,
         tempAvatarRemoved: false,
-      });
+      }));
 
       setAvatarToBeRemoved(false);
       message.success("Đã xóa ảnh đại diện");
@@ -266,6 +261,7 @@ const Profile = () => {
       // Xây dựng payload với đầy đủ thông tin
       const payload = {
         ...values,
+        emails: values.email,
         birthDate: values.birthDate
           ? values.birthDate.format("YYYY-MM-DD")
           : null,
@@ -276,18 +272,17 @@ const Profile = () => {
         payload.avatar = null;
       } else {
         // Giữ nguyên avatar hiện tại
-        payload.avatar = userProfile.avatar;
+        payload.avatar = userProfile?.avatar;
       }
 
       // Gọi API cập nhật
-      await apiClient.put("/api/users", payload);
+      await apiClient.put("/api/users/profile", payload);
 
       // Reset trạng thái xóa avatar
       setAvatarToBeRemoved(false);
 
       // Tải lại thông tin profile cho component này
-      fetchUserProfile();
-      fetchUserAddresses();
+      await fetchUserProfile(false);
       message.success("Cập nhật thông tin thành công");
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -346,8 +341,7 @@ const Profile = () => {
         message.success("Thêm địa chỉ mới thành công");
       }
 
-      // Tải lại thông tin profile cho component này
-      await fetchUserProfile();
+      // Tải lại danh sách địa chỉ
       await fetchUserAddresses();
 
       setIsAddressModalVisible(false);
@@ -363,7 +357,7 @@ const Profile = () => {
     try {
       // Lấy thông tin địa chỉ từ state
       const addressToSetDefault = addresses.find(
-        (addr) => addr.id === addressId
+        (addr) => addr.id === addressId,
       );
 
       if (!addressToSetDefault) {
@@ -374,8 +368,7 @@ const Profile = () => {
       // Gửi request cập nhật địa chỉ mặc định
       await apiClient.patch(`/api/addresses/${addressId}/set-as-default`, {});
 
-      // Tải lại thông tin profile cho component này
-      await fetchUserProfile();
+      // Tải lại danh sách địa chỉ
       await fetchUserAddresses();
 
       message.success("Đã đặt làm địa chỉ mặc định");
@@ -389,8 +382,7 @@ const Profile = () => {
     try {
       await apiClient.delete(`/api/addresses/${addressId}`);
 
-      // Tải lại thông tin profile cho component này
-      await fetchUserProfile();
+      // Tải lại danh sách địa chỉ
       await fetchUserAddresses();
 
       message.success("Xóa địa chỉ thành công");
@@ -407,10 +399,6 @@ const Profile = () => {
       </div>
     );
   }
-
-  const createdDate = userProfile?.createdAt
-    ? moment(userProfile.createdAt).format("DD/MM/YYYY")
-    : "N/A";
 
   return (
     <div className="bg-gray-50 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
@@ -445,13 +433,11 @@ const Profile = () => {
                         src={
                           userProfile?.tempAvatarRemoved
                             ? null
-                            : userProfile?.avatar || userProfile?.avatar
+                            : userProfile?.avatar
                         }
                         icon={
                           (userProfile?.tempAvatarRemoved ||
-                            (!userProfile?.avatar && !userProfile?.avatar)) && (
-                            <UserOutlined />
-                          )
+                            !userProfile?.avatar) && <UserOutlined />
                         }
                         className="bg-indigo-500 mb-4"
                       />
@@ -471,48 +457,17 @@ const Profile = () => {
                     accept="image/*"
                     onChange={handleAvatarChange}
                   />
-
-                  {/* Hiển thị nút xóa avatar nếu có avatar */}
-                  {!userProfile?.tempAvatarRemoved &&
-                    (userProfile?.avatar || userProfile?.avatar) && (
-                      <div>
-                        <Button
-                          size="small"
-                          danger
-                          onClick={handleDirectRemoveAvatar}
-                          className="mt-2"
-                        >
-                          Xóa ngay
-                        </Button>
-                      </div>
-                    )}
                 </div>
 
                 <Title level={3} className="mb-1">
                   {userProfile?.fullName}
                 </Title>
                 <Text type="secondary" className="mb-2">
-                  {userProfile?.email}
+                  {userProfile?.emails}
                 </Text>
-                <div className="text-sm text-gray-500 mt-2">
-                  Thành viên từ {createdDate}
-                </div>
               </div>
             </Card>
 
-            <Card className="shadow-sm">
-              <div>
-                <Title level={4} className="mb-4">
-                  Hoạt động gần đây
-                </Title>
-                <div className="text-center py-6 text-gray-500">
-                  <EnvironmentOutlined
-                    style={{ fontSize: "36px", color: "#d9d9d9" }}
-                  />
-                  <p className="mt-2">Chưa có hoạt động gần đây</p>
-                </div>
-              </div>
-            </Card>
           </div>
 
           {/* Main Content */}
@@ -534,7 +489,7 @@ const Profile = () => {
                     onFinish={handleProfileUpdate}
                     className="max-w-lg"
                   >
-                    <Form.Item name="id" noStyle initialValue={userProfile.id}>
+                    <Form.Item name="id" noStyle initialValue={userProfile?.id}>
                       <Input type="hidden" />
                     </Form.Item>
 
@@ -565,9 +520,9 @@ const Profile = () => {
 
                     <Form.Item name="gender" label="Giới tính">
                       <Select>
-                        <Option value="male">Nam</Option>
-                        <Option value="female">Nữ</Option>
-                        <Option value="other">Khác</Option>
+                        <Option value="MALE">Nam</Option>
+                        <Option value="FEMALE">Nữ</Option>
+                        <Option value="OTHER">Khác</Option>
                       </Select>
                     </Form.Item>
 
@@ -614,8 +569,7 @@ const Profile = () => {
                     </Button>
                   </div>
 
-                  {addresses &&
-                  addresses.length > 0 ? (
+                  {addresses && addresses.length > 0 ? (
                     <List
                       itemLayout="vertical"
                       dataSource={addresses}
@@ -707,7 +661,7 @@ const Profile = () => {
         </div>
       </div>
 
-      {userProfile.tempAvatarRemoved && (
+      {userProfile?.tempAvatarRemoved && (
         <div className="mt-2 text-red-500 text-xs">
           Ảnh sẽ bị xóa sau khi bạn cập nhật thông tin
           <Button

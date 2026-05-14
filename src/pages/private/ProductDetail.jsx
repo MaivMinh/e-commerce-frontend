@@ -53,9 +53,7 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import apiClient from "../../services/apiClient";
-import { AuthContext } from "../../context/AuthContext";
 import { Modal, Upload } from "antd";
-import { colgroup } from "framer-motion/client";
 import { getUserId } from "../../services/keycloak";
 
 const { Title, Text, Paragraph } = Typography;
@@ -64,13 +62,11 @@ const ProductDetail = () => {
   const params = useParams();
   const slug = params.slug;
   const navigate = useNavigate();
-  const { auth } = useContext(AuthContext);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [isAddToCartProcessing, setIsAddToCartProcessing] = useState(false);
-  const [isWishlist, setIsWishlist] = useState(false);
   const [reviewStats, setReviewStats] = useState({
     average: 4.3,
     total: 87,
@@ -947,7 +943,7 @@ const ProductDetail = () => {
                       const formData = new FormData();
                       formData.append("image", file);
                       const res = await apiClient.post(
-                        "/api/files/images/upload",
+                        "/api/files/upload",
                         formData,
                         {
                           headers: { "Content-Type": "multipart/form-data" },

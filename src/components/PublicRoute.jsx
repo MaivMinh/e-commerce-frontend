@@ -1,14 +1,14 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { KeycloakContext } from "./KeycloakProvider";
 
 const PublicPage = ({ children }) => {
-  const { auth, loading } = useContext(AuthContext);
+  const { authenticated, loading } = useContext(KeycloakContext);
   const location = useLocation();
 
   if (loading) return;
 
-  return !auth.isAuthenticated ? (
+  return authenticated ? (
     children
   ) : (
     <Navigate to="/" state={{ from: location.pathname }} replace />

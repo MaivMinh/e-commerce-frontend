@@ -23,7 +23,6 @@ import {
 import { useContext, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { KeycloakContext } from "../../components/KeycloakProvider";
-import { AuthContext } from "../../context/AuthContext";
 import apiClient from "../../services/apiClient";
 import { keycloak } from "../../services/keycloak";
 
@@ -33,7 +32,6 @@ const { Option } = Select;
 const Cart = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]);
-  const { auth } = useContext(AuthContext);
   const [selectedItems, setSelectedItems] = useState([]);
   const [appliedPromotion, setAppliedPromotion] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,11 +39,11 @@ const Cart = () => {
   const [promotions, setPromotions] = useState([]);
   const [api, contextHolder] = notification.useNotification();
   const shippingFee = 30000;
-  const { username } = useContext(KeycloakContext);
+  const { username, authenticated } = useContext(KeycloakContext);
 
   // Fetch cart items (mocked)
   useEffect(() => {
-    if (keycloak.authenticated) {
+    if (authenticated) {
       const fetchCartItems = async () => {
         try {
           const response = await apiClient.get(`/api/carts/cart-items`);
@@ -62,14 +60,20 @@ const Cart = () => {
       };
       fetchCartItems();
     }
-  }, [auth]);
+  }, [authenticated]);
 
   useEffect(() => {
     const fetchPromotions = async () => {
       try {
         let response = await apiClient.get("/api/promotions");
-        const result = response.data.data.promotions || [];
-        setPromotions(result);
+        const result = response.data.data || [];
+        const promotions = result.map((promotion) => {
+          return {
+            ...promotion,
+            isPromotion: true,
+          };
+        });
+        setPromotions(promotions);
       } catch (error) {
         console.error("Failed to fetch promotions:", error);
       }
@@ -84,23 +88,24 @@ const Cart = () => {
           `/api/vouchers/${username}/redeem`,
         );
         const redeemedVouchers = response.data.data || [];
-        const savedPromotions = [
-          ...redeemedVouchers.map((voucher) => ({
-            id: voucher.id,
-            code: voucher.code,
-            type: voucher.type,
-            discountValue:
-              voucher.discountPercentage !== null
-                ? voucher.discountPercentage
-                : voucher.value,
-            startDate: voucher.startDate,
-            endDate: voucher.expirationDate,
-            usageLimit: 1,
-            usageCount: 0,
-            status: voucher.status,
-          })),
-        ];
-        setPromotions((prev) => [...prev, ...savedPromotions]);
+        const savedVouchers = [];
+        for (const v of redeemedVouchers) {
+          let voucher = {};
+          voucher.id = v.id;
+          voucher.code = v.code;
+          voucher.type = v.type;
+          voucher.discountValue = v.discountPercentage
+            ? v.discountPercentage
+            : v.discountValue;
+          voucher.startDate = v.startDate;
+          voucher.endDate = v.expirationDate;
+          voucher.usageLimit = 1;
+          voucher.usageCount = 0;
+          voucher.status = v.status;
+          voucher.isPromotion = false;
+          savedVouchers.push(voucher);
+        }
+        setPromotions((prev) => [...prev, ...savedVouchers]);
       } catch (error) {
         console.error("Failed to fetch promotions:", error);
       }
@@ -189,6 +194,7 @@ const Cart = () => {
 
   // Apply promotion
   const handleApplyPromotion = () => {
+    console.log(promotions);
     const promotion = promotions.find((v) => v.code === promotionCode);
     if (promotion) {
       setAppliedPromotion(promotion);

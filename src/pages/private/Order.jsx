@@ -7,11 +7,9 @@ import {
   Spin,
   Empty,
   Typography,
-  Space,
-  Drawer,
+  Modal,
   Divider,
   Image,
-  Badge,
   Alert,
   Card,
   Input,
@@ -25,10 +23,10 @@ import {
   InboxOutlined,
   SyncOutlined,
   DollarOutlined,
-  FileTextOutlined,
   RightOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
+import { useNavigate, useParams } from "react-router-dom";
 import apiClient from "../../services/apiClient";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
@@ -45,7 +43,10 @@ const statusOptions = [
 ];
 
 const Order = () => {
+  const navigate = useNavigate();
+  const { orderId } = useParams();
   const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [status, setStatus] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -99,6 +100,16 @@ const Order = () => {
   useEffect(() => {
     fetchOrders();
   }, [sortBy, sortDirection]);
+
+  useEffect(() => {
+    if (orderId) {
+      fetchOrderDetail(orderId);
+      return;
+    }
+
+    setDrawerVisible(false);
+    setViewingOrder(null);
+  }, [orderId, orders]);
 
   // Handle client-side search
   const handleSearch = (value) => {
@@ -246,6 +257,63 @@ const Order = () => {
   const viewOrderDetail = (order) => {
     setViewingOrder(order);
     setDrawerVisible(true);
+    navigate(`/orders/${order.id}`);
+  };
+
+  const fetchOrderDetail = async (targetOrderId) => {
+    if (!targetOrderId) {
+      return;
+    }
+
+    const matchedOrder = orders.find((order) => order.id === targetOrderId);
+    if (matchedOrder) {
+      setViewingOrder(matchedOrder);
+      setDrawerVisible(true);
+      return;
+    }
+
+    setDetailLoading(true);
+    try {
+      const response = await apiClient.get(`/api/orders/${targetOrderId}`);
+      const data = response.data.data || response.data;
+      setViewingOrder(data);
+      setDrawerVisible(true);
+      setError(null);
+      return;
+    } catch (error) {
+      try {
+        const response = await apiClient.post("/api/orders/search", {
+          page: 1,
+          size: 10,
+          keyword: targetOrderId,
+          status: null,
+          sortBy,
+          sortDirection,
+        });
+
+        const data = response.data.data;
+        const foundOrder = (data.orders || []).find(
+          (order) => order.id === targetOrderId
+        );
+
+        if (foundOrder) {
+          setViewingOrder(foundOrder);
+          setDrawerVisible(true);
+          setError(null);
+          return;
+        }
+
+        setError("Không tìm thấy đơn hàng được yêu cầu");
+        setViewingOrder(null);
+        setDrawerVisible(false);
+      } catch (innerError) {
+        setError("Đã xảy ra lỗi khi tải chi tiết đơn hàng");
+        setViewingOrder(null);
+        setDrawerVisible(false);
+      }
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const searchOrderByStatus = (order, status) => {
@@ -420,8 +488,8 @@ const Order = () => {
         </Card>
       </div>
 
-      {/* Order Detail Drawer */}
-      <Drawer
+      {/* Order Detail Modal */}
+      <Modal
         title={
           viewingOrder ? (
             <div className="flex items-center">
@@ -432,13 +500,18 @@ const Order = () => {
             "Chi tiết đơn hàng"
           )
         }
-        placement="right"
-        onClose={() => setDrawerVisible(false)}
+        centered
+        onCancel={() => navigate("/orders")}
         open={drawerVisible}
-        width={520}
-        extra={viewingOrder && getStatusTag(viewingOrder.status)}
+        footer={null}
+        width={760}
+        destroyOnClose
       >
-        {viewingOrder && (
+        {detailLoading ? (
+          <div className="py-10 flex justify-center">
+            <Spin />
+          </div>
+        ) : viewingOrder ? (
           <div>
             <div className="mb-6">
               <Text type="secondary">Thông tin đơn hàng</Text>
@@ -477,19 +550,23 @@ const Order = () => {
                     >
                       <div className="w-16 h-16 flex-shrink-0">
                         <Image
-                          src={item.productVariant.cover}
-                          alt={item.productVariant.name}
+                          src={item.productVariant?.cover}
+                          alt={item.productVariant?.name}
                           className="w-full h-full object-cover rounded"
                           preview={false}
                         />
                       </div>
                       <div className="ml-3 flex-grow">
-                        <div className="font-medium">
-                          {item.productVariant.name}
-                        </div>
+                        <button
+                          type="button"
+                          className="text-left font-medium text-gray-900 cursor-pointer rounded px-1 -mx-1 transition-all duration-200 hover:text-indigo-600 hover:bg-gray-100 hover:shadow-sm"
+                          onClick={() => navigate(`/products/${item.productVariant?.slug}`)}
+                        >
+                          {item.productVariant?.name}
+                        </button>
                         <div className="text-gray-500 text-sm">
-                          Size: {item.productVariant.size}, Màu:{" "}
-                          {item.productVariant.colorName}
+                          Size: {item.productVariant?.size}, Màu:{" "}
+                          {item.productVariant?.colorName}
                         </div>
                         <div className="flex justify-between items-center mt-1">
                           <div className="text-gray-500">
@@ -554,8 +631,10 @@ const Order = () => {
               </div>
             )}
           </div>
+        ) : (
+          <Empty description="Không có thông tin đơn hàng" />
         )}
-      </Drawer>
+      </Modal>
     </div>
   );
 };

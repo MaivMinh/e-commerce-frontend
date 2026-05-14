@@ -18,7 +18,6 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import apiClient from "../../services/apiClient.js";
 import { motion } from "framer-motion"; // Add framer-motion for animations
-import { AuthContext } from "../../context/AuthContext.jsx";
 
 const { Title, Text } = Typography;
 
@@ -27,7 +26,6 @@ const Login = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, auth } = useContext(AuthContext);
   const params = new URLSearchParams(window.location.search);
   const registered = params.get("registered");
   const expired = params.get("expired");
@@ -78,7 +76,6 @@ const Login = () => {
         const accessToken = data.accessToken;
         const refreshToken = data.refreshToken;
         localStorage.setItem("refresh-token", refreshToken);
-        login(accessToken);
         navigate(from, { replace: true });
       })
       .catch((error) => {

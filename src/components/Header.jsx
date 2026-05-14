@@ -22,11 +22,10 @@ import {
 import debounce from "lodash.debounce";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import logo from "../assets/images/logo.png";
-import { AuthContext } from "../context/AuthContext";
+import logo from "../assets/images/logo.webp";
 import apiClient from "../services/apiClient";
 import { KeycloakContext } from "./KeycloakProvider";
-import { login, logout } from "../services/keycloak";
+import { logout } from "../services/keycloak";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -35,8 +34,7 @@ const Header = () => {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const { profile } = useContext(AuthContext);
-  const { keycloak, authenticated } = useContext(KeycloakContext);
+  const { keycloak, authenticated, profile } = useContext(KeycloakContext);
 
   // Tạo debounced search function để tránh gọi API quá nhiều
   const debouncedSearch = useMemo(

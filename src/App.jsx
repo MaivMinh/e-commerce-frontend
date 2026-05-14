@@ -9,7 +9,6 @@ import ResetPassword from "./pages/public/ResetPassword";
 import Home from "./pages/public/Home";
 import ProductDetail from "./pages/private/ProductDetail";
 import NotFound from "./pages/public/NotFound";
-import { AuthContextProvider } from "./context/AuthContext";
 import MainLayout from "./components/MainLayout";
 import SearchResults from "./pages/SearchResults";
 import Cart from "./pages/private/Cart";
@@ -26,7 +25,6 @@ import PlayGame from "./pages/PlayGame";
 function App() {
   return (
     <KeycloakProvider>
-      <AuthContextProvider>
         <CartContextProvider>
           <Router>
             <Routes>
@@ -120,6 +118,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/orders/:orderId"
+                  element={
+                    <PrivateRoute>
+                      <Order />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
                   path="/wishlist"
                   element={
                     <PrivateRoute>
@@ -165,7 +171,6 @@ function App() {
             </Routes>
           </Router>
         </CartContextProvider>
-      </AuthContextProvider>
     </KeycloakProvider>
   );
 }
