@@ -1,7 +1,7 @@
 import { Client } from "@stomp/stompjs";
 
 const prodUrl = "wss://moviereservation.software/websocket-bookings/";
-const devUrl = "ws://localhost:8084/bookings";
+const devUrl = "ws://103.90.224.152:8084/bookings";
 
 const brokerUrl = devUrl;
 

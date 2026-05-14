@@ -1,7 +1,7 @@
 import Keycloak from "keycloak-js";
 
 export const keycloak = new Keycloak({
-  url: "http://localhost:6060/",
+  url: "http://103.90.224.152:6060/",
   realm: "e-commerce",
   clientId: "ecommerce-user",
 });

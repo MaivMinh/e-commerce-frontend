@@ -115,7 +115,7 @@ const PlayGame = () => {
   const connectWebSocket = () => {
     try {
       const token = localStorage.getItem("kc_token");
-      const gatewayUrl = `ws://localhost:8088/ws/events?token=${token}&eventId=${eventId}`;
+      const gatewayUrl = `ws://103.90.224.152:8088/ws/events?token=${token}&eventId=${eventId}`;
       const wsUrl = gatewayUrl;
 
       const ws = new WebSocket(wsUrl);

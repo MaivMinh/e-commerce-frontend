@@ -1,6 +1,6 @@
 import { Client } from "@stomp/stompjs";
 
-const WS_URL = "ws://localhost:8080/ws/events"; 
+const WS_URL = "ws://103.90.224.152:8080/ws/events"; 
 
 const gameWs = new Client({
   brokerURL: WS_URL,

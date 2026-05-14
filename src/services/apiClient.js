@@ -2,7 +2,7 @@ import axios from "axios";
 import { keycloak } from "./keycloak";
 
 /// Cấu hình chung.
-const API_BASE_URL = "http://localhost:8080/";
+const API_BASE_URL = "http://103.90.224.152:8080/";
 const PROD_API_BASE_URL = "https://www.moviereservation.software/";
 
 /// Tạo instance tập trung.
