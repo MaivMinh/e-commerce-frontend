@@ -46,7 +46,7 @@ const EventList = () => {
 
   // Search filters
   const [searchName, setSearchName] = useState("");
-  const [startTimeRange, setStartTimeRange] = useState([dayjs(), dayjs()]);
+  const [startTimeRange, setStartTimeRange] = useState(null);
   const [endTimeRange, setEndTimeRange] = useState(null);
 
   // Fetch campaigns
@@ -59,7 +59,7 @@ const EventList = () => {
         name: searchName || null,
         fromStartTime: startTimeRange?.[0]
           ? startTimeRange[0].startOf("day").toISOString()
-          : dayjs().startOf("day").toISOString(),
+          : null,
         toStartTime: startTimeRange?.[1]
           ? startTimeRange[1].endOf("day").toISOString()
           : null,
@@ -73,6 +73,7 @@ const EventList = () => {
 
       const response = await apiClient.post("/api/campaigns/search", payload);
       const data = response.data.data;
+
 
       setCampaigns(data.content || []);
       setTotalElements(data.totalElements || 0);
@@ -147,6 +148,7 @@ const EventList = () => {
   // Render campaign card
   const renderCampaignCard = (campaign) => {
     const status = getCampaignStatus(campaign);
+    console.log(campaign)
     const hasImages =
       campaign.campaignImages && campaign.campaignImages.length > 0;
     const defaultImage = "https://via.placeholder.com/400x250?text=No+Image";
