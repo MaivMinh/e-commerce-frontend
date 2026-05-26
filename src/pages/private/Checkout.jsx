@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import {
   Typography,
   Button,
@@ -12,7 +12,6 @@ import {
   List,
   notification,
   Modal,
-  Result,
   Spin,
   Checkbox,
 } from "antd";
@@ -32,6 +31,7 @@ import { QRCodeSVG } from "qrcode.react";
 import apiClient from "../../services/apiClient";
 import { keycloak } from "../../services/keycloak";
 import { KeycloakContext } from "../../components/KeycloakProvider";
+import { usePayPalCheckoutStream } from "../../helper/usePayPalCheckoutStream";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -46,13 +46,16 @@ const Checkout = () => {
   const [paymentMethodId, setPaymentMethodId] = useState(null);
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [orderId, setOrderId] = useState(
-    "ORD" + Math.floor(100000 + Math.random() * 900000),
+    () => sessionStorage.getItem("paypal-checkout-order-id") || null,
   );
-  const [showFailureModal, setShowFailureModal] = useState(false);
-  const [stockErrorMessage, setStockErrorMessage] = useState("");
+  const [localOrderReference] = useState(
+    () => "ORD" + Math.floor(100000 + Math.random() * 900000),
+  );
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paypalWorkflowStatus, setPaypalWorkflowStatus] = useState("idle");
+  const [pendingPaypalRedirect, setPendingPaypalRedirect] = useState(null);
+  const [paypalStreamRetryKey, setPaypalStreamRetryKey] = useState(0);
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [appliedPromotion, setAppliedPromotion] = useState(null);
   const [addresses, setAddresses] = useState([]);
@@ -62,6 +65,8 @@ const Checkout = () => {
   const [addingAddress, setAddingAddress] = useState(false);
 
   const [productId, setProductId] = useState(null);
+  const paypalRedirectTimeoutRef = useRef(null);
+  const paypalOrderIdRef = useRef(null);
 
   const { username } = useContext(KeycloakContext);
 
@@ -291,7 +296,8 @@ const Checkout = () => {
   };
 
   // Form submission handler
-  const handleSubmit = async (values) => {
+  const handleSubmit = async () => {
+    console.log("[Checkout] handleSubmit called, currentStep:", currentStep);
     if (currentStep === 0) {
       // Validate shipping address
       if (!selectedAddress) {
@@ -316,6 +322,25 @@ const Checkout = () => {
         return;
       }
 
+      if (isPayPalMethod()) {
+        console.log(
+          "[Checkout] PayPal method detected, stream status:",
+          paypalStreamStatus,
+        );
+        if (paypalStreamStatus !== "connected") {
+          notification.warning({
+            message: "Đang kết nối PayPal",
+            description:
+              "Vui lòng chờ SSE PayPal kết nối xong trước khi đặt hàng.",
+          });
+          return;
+        }
+
+        console.log("[Checkout] Stream connected, calling placeOrder");
+        await placeOrder({ paymentMethodOverride: "PAYPAL" });
+        return;
+      }
+
       // Handle payment based on selected method
       if (isPaymentMethodType("e_wallet")) {
         setShowQRModal(true);
@@ -336,8 +361,122 @@ const Checkout = () => {
     return method && method.type === type;
   };
 
+  const isPayPalMethod = () =>
+    getSelectedPaymentMethod()?.code?.toUpperCase() === "PAYPAL";
+
+  const clearPaypalRedirectTimeout = () => {
+    if (paypalRedirectTimeoutRef.current) {
+      window.clearTimeout(paypalRedirectTimeoutRef.current);
+      paypalRedirectTimeoutRef.current = null;
+    }
+  };
+
+  const isPayPalWaiting =
+    paypalWorkflowStatus === "waiting_paypal_redirect" ||
+    paypalWorkflowStatus === "creating_order";
+
+  const handlePaypalRedirectPayload = (payload) => {
+    console.log(
+      "[Checkout] handlePaypalRedirectPayload called with:",
+      payload,
+      "expected orderId (from ref):",
+      paypalOrderIdRef.current,
+    );
+
+    // Don't redirect if we haven't created an order yet
+    if (!paypalOrderIdRef.current) {
+      console.log(
+        "[Checkout] No active PayPal order, deferring event for later",
+      );
+      setPendingPaypalRedirect(payload);
+      return;
+    }
+
+    if (!payload || payload.status !== "PENDING" || !payload.redirectUrl) {
+      console.log("[Checkout] Payload validation failed", {
+        hasPayload: !!payload,
+        status: payload?.status,
+        hasUrl: !!payload?.redirectUrl,
+      });
+      return;
+    }
+
+    // Check order ID from ref (not state, which may be stale)
+    if (
+      payload.orderId &&
+      payload.orderId !== paypalOrderIdRef.current
+    ) {
+      console.log(
+        "[Checkout] Order ID mismatch, ignoring. Expected:",
+        paypalOrderIdRef.current,
+        "got:",
+        payload.orderId,
+      );
+      return;
+    }
+
+    console.log("[Checkout] Redirecting to PayPal URL:", payload.redirectUrl);
+    clearPaypalRedirectTimeout();
+    setPaypalWorkflowStatus("redirecting_to_paypal");
+    setPaymentProcessing(false);
+    window.location.replace(payload.redirectUrl);
+  };
+
+  const paypalCheckoutEnabled = currentStep === 1 && isPayPalMethod();
+
+  const {
+    status: paypalStreamStatus,
+    error: paypalStreamError,
+  } = usePayPalCheckoutStream({
+    enabled: paypalCheckoutEnabled,
+    connectionKey: paypalStreamRetryKey,
+    onRedirect: handlePaypalRedirectPayload,
+    onError: () => {
+      clearPaypalRedirectTimeout();
+      setPaymentProcessing(false);
+      setPaypalWorkflowStatus("payment_failed");
+      notification.error({
+        message: "Không thể kết nối payment stream",
+        description:
+          "Frontend không nhận được SSE PayPal. Vui lòng thử kết nối lại.",
+      });
+    },
+  });
+
+  useEffect(() => {
+    if (!pendingPaypalRedirect || !paypalOrderIdRef.current) {
+      return;
+    }
+
+    if (
+      pendingPaypalRedirect.orderId &&
+      pendingPaypalRedirect.orderId !== paypalOrderIdRef.current
+    ) {
+      return;
+    }
+
+    console.log(
+      "[Checkout] Processing pending redirect:",
+      pendingPaypalRedirect.redirectUrl,
+    );
+    clearPaypalRedirectTimeout();
+    setPendingPaypalRedirect(null);
+    setPaypalWorkflowStatus("redirecting_to_paypal");
+    setPaymentProcessing(false);
+    window.location.replace(pendingPaypalRedirect.redirectUrl);
+  }, [paypalOrderIdRef, pendingPaypalRedirect]);
+
+  useEffect(() => () => {
+    clearPaypalRedirectTimeout();
+    paypalOrderIdRef.current = null;
+  }, []);
+
+  const displayOrderId = orderId || localOrderReference;
+
   // Hàm gọi API để đặt hàng
-  const placeOrder = async () => {
+  const placeOrder = async ({ paymentMethodOverride = null } = {}) => {
+    let keepPaymentProcessing = false;
+
     try {
       setPaymentProcessing(true);
 
@@ -351,13 +490,21 @@ const Checkout = () => {
         return;
       }
 
+      const paymentMethodCode =
+        paymentMethodOverride || getSelectedPaymentMethod().code;
+
+      if (paymentMethodCode?.toUpperCase() === "PAYPAL") {
+        setPaypalWorkflowStatus("creating_order");
+        setShowQRModal(false);
+      }
+
       // Chuẩn bị dữ liệu đơn hàng
       const orderPayload = {
         shippingAddressId: selectedAddressInfo.id,
         subTotal: calculateSubtotal(),
         discount: calculateDiscount(),
         total: calculateTotal(),
-        paymentMethod: getSelectedPaymentMethod().code,
+        paymentMethod: paymentMethodCode,
         promotionId: appliedPromotion?.isPromotion
           ? appliedPromotion?.id
           : null,
@@ -376,18 +523,60 @@ const Checkout = () => {
 
       // Gọi API đặt hàng
       const response = await apiClient.post("/api/orders", orderPayload);
+      const createdOrderId =
+        response.data.data?.orderId ||
+        response.data.data?.id ||
+        response.data.orderId ||
+        null;
+
+      console.log("[Checkout] Order created, response:", {
+        orderId: createdOrderId,
+        paymentMethod: paymentMethodCode,
+      });
+
+      if (paymentMethodCode?.toUpperCase() === "PAYPAL") {
+        if (!createdOrderId) {
+          throw new Error("Backend không trả về orderId cho PayPal.");
+        }
+
+        console.log(
+          "[Checkout] Waiting for PayPal SSE event with orderId:",
+          createdOrderId,
+        );
+
+        keepPaymentProcessing = true;
+        paypalOrderIdRef.current = createdOrderId;
+        setOrderId(createdOrderId);
+        sessionStorage.setItem("paypal-checkout-order-id", createdOrderId);
+        setShowQRModal(false);
+        setPaypalWorkflowStatus("waiting_paypal_redirect");
+        clearPaypalRedirectTimeout();
+        paypalRedirectTimeoutRef.current = window.setTimeout(() => {
+          setPaymentProcessing(false);
+          setPaypalWorkflowStatus("payment_failed");
+          notification.error({
+            message: "Không nhận được URL PayPal",
+            description:
+              "Vui lòng thử kết nối lại stream hoặc tải lại trang checkout.",
+          });
+        }, 15000);
+
+        return { orderId: createdOrderId, response };
+      }
 
       // Xử lý kết quả
       // Cập nhật orderId từ response nếu có
-      if (response.data.data?.orderId) {
-        setOrderId(response.data.data.orderId);
+      if (createdOrderId) {
+        setOrderId(createdOrderId);
       } else {
-        setOrderId("ORD" + Math.floor(100000 + Math.random() * 900000));
+        setOrderId(localOrderReference);
       }
 
+      clearPaypalRedirectTimeout();
+      sessionStorage.removeItem("paypal-checkout-order-id");
+      setPaypalWorkflowStatus("idle");
       setShowQRModal(false);
-      setShowSuccessModal(true);
-      setShowFailureModal(false);
+      paypalOrderIdRef.current = null;
 
       notification.success({
         message: "Đặt hàng thành công",
@@ -398,33 +587,23 @@ const Checkout = () => {
     } catch (error) {
       console.error("Lỗi khi đặt hàng:", error);
 
-      setShowSuccessModal(false);
+      notification.error({
+        message: "Đặt hàng thất bại",
+        description:
+          error.response?.data?.message ||
+          "Có lỗi xảy ra khi xử lý đơn hàng. Vui lòng thử lại sau.",
+      });
 
-      // Xử lý lỗi cụ thể
-      if (
-        error.response?.data?.message?.includes("không đủ số lượng trong kho")
-      ) {
-        setStockErrorMessage(
-          "Sản phẩm trong giỏ hàng của bạn hiện không đủ số lượng trong kho.",
-        );
-      } else {
-        setStockErrorMessage(
-          error.response?.data?.message || "Có lỗi xảy ra khi xử lý đơn hàng.",
-        );
-      }
-
-      setShowFailureModal(true);
+      paypalOrderIdRef.current = null;
       return false;
     } finally {
-      setPaymentProcessing(false);
+      if (!keepPaymentProcessing) {
+        setPaymentProcessing(false);
+      }
     }
   };
 
   const simulatePaymentProcessing = async () => {
-    // Reset modals
-    setShowSuccessModal(false);
-    setShowFailureModal(false);
-    setStockErrorMessage("");
     setPaymentProcessing(true);
 
     // Gọi API để đặt hàng
@@ -730,6 +909,47 @@ const Checkout = () => {
                         </div>
                       )}
 
+                      {isPayPalMethod() && (
+                        <div className="ml-8 mb-6 p-4 bg-blue-50 rounded-lg">
+                          <Paragraph className="text-gray-600 text-sm mb-2">
+                            <InfoCircleOutlined className="mr-1" /> PayPal sẽ
+                            chỉ cho phép đặt hàng sau khi SSE đã kết nối xong.
+                            Khi backend phát event <strong>paypal-redirect</strong>,
+                            frontend sẽ tự chuyển sang PayPal.
+                          </Paragraph>
+                          <div className="text-sm text-gray-700">
+                            Trạng thái stream:{" "}
+                            <strong>
+                              {paypalStreamStatus === "connecting"
+                                ? "Đang kết nối..."
+                                : paypalStreamStatus === "connected"
+                                  ? "Sẵn sàng"
+                                  : paypalStreamStatus === "error"
+                                    ? "Kết nối thất bại"
+                                    : "Chưa kích hoạt"}
+                            </strong>
+                          </div>
+                          {paypalStreamError && paypalStreamStatus === "error" && (
+                            <div className="mt-2 text-red-500 text-sm">
+                              {paypalStreamError}
+                            </div>
+                          )}
+                          {paypalStreamStatus === "error" && (
+                            <Button
+                              type="link"
+                              className="p-0 mt-2 text-blue-600"
+                              onClick={() => {
+                                setPaypalWorkflowStatus("idle");
+                                setPendingPaypalRedirect(null);
+                                setPaypalStreamRetryKey((value) => value + 1);
+                              }}
+                            >
+                              Thử kết nối lại
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
                       <Form.Item className="mb-0">
                         <div className="flex justify-between">
                           <Button
@@ -743,7 +963,15 @@ const Checkout = () => {
                             htmlType="submit"
                             size="large"
                             className="bg-indigo-600 hover:bg-indigo-700"
-                            loading={paymentProcessing}
+                            loading={
+                              paymentProcessing ||
+                              (isPayPalMethod() &&
+                                paypalStreamStatus === "connecting")
+                            }
+                            disabled={
+                              isPayPalMethod() &&
+                              paypalStreamStatus !== "connected"
+                            }
                           >
                             Đặt hàng
                           </Button>
@@ -912,7 +1140,7 @@ const Checkout = () => {
             <QRCodeSVG
               value={`https://payment.example.com/${
                 getSelectedPaymentMethod()?.provider?.toLowerCase() || "wallet"
-              }/checkout?amount=${calculateTotal()}&orderId=${orderId}`}
+              }/checkout?amount=${calculateTotal()}&orderId=${displayOrderId}`}
               size={200}
               level="H"
               className="mx-auto"
@@ -937,78 +1165,28 @@ const Checkout = () => {
         </div>
       </Modal>
 
-      {/* Success Modal */}
       <Modal
-        open={showSuccessModal}
+        open={isPayPalWaiting}
         footer={null}
         closable={false}
+        maskClosable={false}
         centered
-        width={600}
-        className="success-modal"
+        width={560}
+        className="paypal-waiting-modal"
       >
-        <Result
-          status="success"
-          title="Đặt hàng thành công!"
-          subTitle={`Mã đơn hàng: ${orderId}. Cảm ơn bạn đã mua sắm tại Shop!`}
-          extra={[
-            <Button
-              type="primary"
-              key="console"
-              onClick={() => navigate("/orders")}
-              className="bg-indigo-600 hover:bg-indigo-700"
-              size="large"
-            >
-              Xem đơn hàng
-            </Button>,
-            <Button key="buy" onClick={() => navigate("/")} size="large">
-              Tiếp tục mua sắm
-            </Button>,
-          ]}
-        />
-      </Modal>
-
-      {/* Failure Modal */}
-      <Modal
-        open={showFailureModal}
-        footer={null}
-        closable={false}
-        centered
-        width={600}
-        className="failure-modal"
-      >
-        <Result
-          status="error"
-          title="Đặt hàng thất bại"
-          subTitle={
-            stockErrorMessage ||
-            "Có lỗi xảy ra khi xử lý đơn hàng. Vui lòng thử lại sau."
-          }
-          extra={[
-            <Button
-              type="primary"
-              key="retry"
-              onClick={() => {
-                setShowFailureModal(false);
-                setStockErrorMessage("");
-              }}
-              className="bg-red-600 hover:bg-red-700"
-              size="large"
-            >
-              Thử lại
-            </Button>,
-            <Button
-              key="cart"
-              onClick={() => {
-                navigate("/cart");
-                setShowFailureModal(false);
-                setStockErrorMessage("");
-              }}
-              size="large"
-            >
-              Quay lại giỏ hàng
-            </Button>,
-          ]}
-        />
+        <div className="py-6 text-center">
+          <Spin size="large" />
+          <Title level={4} className="mt-4 mb-2">
+            Đang chờ PayPal phản hồi
+          </Title>
+          <Paragraph className="text-gray-600 mb-2">
+            Đơn hàng đã được tạo. Hệ thống đang đợi event SSE có redirect URL để
+            chuyển bạn sang PayPal.
+          </Paragraph>
+          <Paragraph className="text-gray-500 mb-0">
+            Trạng thái stream: <strong>{paypalStreamStatus}</strong>
+          </Paragraph>
+        </div>
       </Modal>
 
       {/* Add Address Modal */}

@@ -38,7 +38,6 @@ const Cart = () => {
   const [promotionCode, setPromotionCode] = useState("");
   const [promotions, setPromotions] = useState([]);
   const [api, contextHolder] = notification.useNotification();
-  const shippingFee = 30000;
   const { username, authenticated } = useContext(KeycloakContext);
 
   // Fetch cart items (mocked)
@@ -197,6 +196,14 @@ const Cart = () => {
     console.log(promotions);
     const promotion = promotions.find((v) => v.code === promotionCode);
     if (promotion) {
+      if (promotion.type === "shipping") {
+        notification.warning({
+          message: "Không thể áp dụng mã",
+          description: "Đơn hàng hiện không tính phí vận chuyển.",
+        });
+        setPromotionCode("");
+        return;
+      }
       setAppliedPromotion(promotion);
       notification.success({
         message: "Áp dụng mã giảm giá thành công",
@@ -255,8 +262,6 @@ const Cart = () => {
       return (subtotal * appliedPromotion.discountValue) / 100;
     } else if (appliedPromotion.type === "fixed") {
       return appliedPromotion.discountValue;
-    } else if (appliedPromotion.type === "shipping") {
-      return appliedPromotion.discountValue;
     }
     return 0;
   };
@@ -265,8 +270,7 @@ const Cart = () => {
   const calculateTotal = () => {
     const subtotal = calculateSubtotal();
     const discount = calculateDiscount();
-    const shipping = 30000; // Default shipping fee
-    return subtotal - discount + shipping;
+    return subtotal - discount;
   };
 
   // Format currency
@@ -499,15 +503,6 @@ const Cart = () => {
                   <div className="flex justify-between">
                     <Text>Tạm tính:</Text>
                     <Text strong>{formatPrice(calculateSubtotal())}</Text>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <Text>Phí vận chuyển:</Text>
-                    <Text>
-                      {appliedPromotion?.type === "shipping"
-                        ? "Miễn phí"
-                        : formatPrice(shippingFee)}
-                    </Text>
                   </div>
 
                   {appliedPromotion && (
