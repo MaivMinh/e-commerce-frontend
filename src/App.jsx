@@ -14,6 +14,8 @@ import SearchResults from "./pages/SearchResults";
 import Cart from "./pages/private/Cart";
 import Order from "./pages/private/Order";
 import Checkout from "./pages/private/Checkout";
+import PayPalReturn from "./pages/private/PayPalReturn";
+import PayPalCancel from "./pages/private/PayPalCancel";
 import Product from "./pages/private/Product";
 import { CartContextProvider } from "./context/CartContext";
 import Profile from "./pages/private/Profile";
@@ -138,6 +140,22 @@ function App() {
                   element={
                     <PrivateRoute>
                       <Checkout />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/checkout/paypal/return"
+                  element={
+                    <PrivateRoute>
+                      <PayPalReturn />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/checkout/paypal/cancel"
+                  element={
+                    <PrivateRoute>
+                      <PayPalCancel />
                     </PrivateRoute>
                   }
                 />
